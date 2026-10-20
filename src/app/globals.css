@@ -1,0 +1,349 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   KSU CROWN — theme extracted from the brand assets
+   --------------------------------------------------------------------------
+   Wall  (هوية النادي)  base #243035 · shaded stripes #1D2327 · lit #3D444B
+   Brand (هويّة ksu crown) cyan sampled from the wordmark: #67FEFE
+   Crown chrome: #FFFFFF → #E4EBF1 → #BAC6D2 → #7E8B99
+   ========================================================================== */
+
+:root {
+  /* wall / arena surface */
+  --wall-950: #0e1417;
+  --wall-900: #161d21;
+  --wall-850: #1a2126;
+  --wall-800: #1d2327;
+  --wall-700: #243035;
+  --wall-600: #2a363d;
+  --wall-500: #323f47;
+  --wall-400: #3d444b;
+  --wall-300: #4d5962;
+
+  /* brand cyan */
+  --brand: #5cf0f7;
+  --brand-bright: #67fefe;
+  --brand-deep: #23b5c6;
+  --brand-dim: #1c6b76;
+
+  /* chrome + type */
+  --chrome-1: #ffffff;
+  --chrome-2: #e4ebf1;
+  --chrome-3: #bac6d2;
+  --chrome-4: #7e8b99;
+  --snow: #eef5f8;
+  --ash: #93a6b1;
+
+  --danger: #ff6b6b;
+  --danger-deep: #7f2222;
+  --ok: #48e5a8;
+}
+
+@theme inline {
+  --color-wall-950: var(--wall-950);
+  --color-wall-900: var(--wall-900);
+  --color-wall-850: var(--wall-850);
+  --color-wall-800: var(--wall-800);
+  --color-wall-700: var(--wall-700);
+  --color-wall-600: var(--wall-600);
+  --color-wall-500: var(--wall-500);
+  --color-wall-400: var(--wall-400);
+  --color-wall-300: var(--wall-300);
+
+  --color-brand: var(--brand);
+  --color-brand-bright: var(--brand-bright);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-dim: var(--brand-dim);
+
+  --color-chrome-1: var(--chrome-1);
+  --color-chrome-2: var(--chrome-2);
+  --color-chrome-3: var(--chrome-3);
+  --color-chrome-4: var(--chrome-4);
+  --color-snow: var(--snow);
+  --color-ash: var(--ash);
+
+  --color-danger: var(--danger);
+  --color-ok: var(--ok);
+
+  --font-display: var(--font-archivo), "Arial Black", system-ui, sans-serif;
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-var), ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius-hud: 14px;
+}
+
+/* --------------------------------------------------------------------------
+   Arabic typeface
+   --------------------------------------------------------------------------
+   Tajawal, selected by the `lang` attribute. `LANGUAGE_BOOTSTRAP_SCRIPT` writes that
+   attribute in `<head>` before the first paint, so the Arabic face is the one that
+   paints rather than a Latin face correcting itself a frame later.
+
+   These declare `font-family` directly on the element that carries `lang`. The
+   obvious alternative — re-pointing `--font-sans` per language — **does not work**,
+   and it is worth recording why, because it looks like it should. `body` declares
+   `font-family: var(--font-sans)`, and a `var()` is substituted when the property is
+   computed on `body`. What inherits into every descendant is the *resolved* family
+   list, not the variable. Setting `--font-sans` on a descendant therefore has no
+   effect on it, and setting it on `html` has none either, because `body`'s own
+   declaration wins over what it would have inherited. Verified: with the variables
+   swapped, `getComputedStyle(document.body).fontFamily` still reported the Latin face.
+
+   Declaring the property also solves the reverse case. An English block inside the
+   Arabic privacy notice, and the English-only organiser console rendered inside an
+   Arabic document, both need to *stop* inheriting Arabic — and an inherited value can
+   only be displaced by a declaration on the element itself. `[lang="en"]` is that
+   declaration.
+
+   `--font-mono` is untouched in both directions: it renders the one-time code, the
+   reference and student numbers, which are Latin tokens that have to stay fixed-width.
+   -------------------------------------------------------------------------- */
+
+html[lang="ar"],
+[lang="ar"] {
+  font-family: var(--font-arabic), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Back to the Latin faces for a subtree that declares English. Also re-states the
+   default on an English page, so `?lang=en` is unaffected either way. */
+[lang="en"] {
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
+ * Headings keep their weight in Arabic.
+ *
+ * `font-display` is Archivo Black, a *black* face — its normal weight is far heavier
+ * than a normal weight in any other family. Tajawal at 400 is an ordinary text
+ * weight, so the family swap alone left every Arabic heading looking thin and the page
+ * without its hierarchy: "الفريق" read as body text beside the English "Team" in
+ * Archivo Black. Measured before this rule: English heading 400 in Archivo Black,
+ * Arabic heading 400 in Tajawal.
+ *
+ * 800 is the closest weight Tajawal has. This is the one place the stylesheet
+ * deliberately overrides a Tailwind utility, scoped to `[lang="ar"]` so English
+ * headings keep Archivo Black untouched — intentional and narrow, unlike the
+ * accidental override documented at the top of this file. `[lang="en"] .font-display`
+ * puts an explicitly-English heading back on Archivo Black, since the Arabic rule
+ * would otherwise still match it as a descendant of an Arabic document.
+ */
+[lang="ar"] .font-display {
+  font-family: var(--font-arabic), "Arial Black", system-ui, sans-serif;
+  font-weight: 800;
+}
+
+[lang="en"] .font-display {
+  font-family: var(--font-archivo), "Arial Black", system-ui, sans-serif;
+}
+
+/*
+ * Headings keep their weight in Arabic.
+ *
+ * `font-display` is Archivo Black, a *black* face — its normal weight is far heavier
+ * than a normal weight in any other family. Tajawal at 400 is an ordinary text
+ * weight, so simply swapping the family left every Arabic heading looking thin and
+ * the page without its hierarchy: "الفريق" at 400 read as body text next to the
+ * English "Team" in Archivo Black.
+ *
+ * 800 is the closest Tajawal weight to a black face. This is the one place the
+ * stylesheet deliberately overrides a Tailwind utility, and it is scoped to
+ * `[lang="ar"]` so English headings keep Archivo Black at 400 untouched — see the
+ * warning above about unlayered CSS beating utilities, and note that this override
+ * is intentional and narrow rather than incidental.
+ */
+[lang="ar"] .font-display {
+  font-weight: 800;
+}
+
+/* --------------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------------
+   These must live in `@layer base`. Tailwind puts its own base and its
+   utilities in named layers, and **unlayered CSS beats every layer regardless
+   of specificity** — so writing `* { border-color: … }` at the top level
+   silently overrode every `border-*` colour utility in the app. That is why
+   `border-brand/70`, `border-danger/45` and the logo's border all rendered as
+   plain slate.
+   -------------------------------------------------------------------------- */
+
+@layer base {
+  * {
+    border-color: var(--wall-500);
+  }
+
+  html {
+    background-color: var(--wall-900);
+    /* Declared on `html` rather than `body` so the per-language rules above can
+       displace it. A declaration on `body` wins over anything `body` would inherit,
+       which would leave `html[lang="ar"]` unable to reach any text on the page. */
+    font-family: var(--font-sans);
+  }
+
+  body {
+    background-color: var(--wall-900);
+    color: var(--snow);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Chrome wordmark — the "CROWN" gradient from the logo (cyan → white)
+   -------------------------------------------------------------------------- */
+
+.chrome-text {
+  background-image: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    var(--chrome-2) 28%,
+    var(--chrome-3) 52%,
+    var(--chrome-2) 68%,
+    #ffffff 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.crown-fade-text {
+  background-image: linear-gradient(
+    180deg,
+    var(--brand-bright) 0%,
+    var(--brand) 38%,
+    rgba(160, 244, 250, 0.82) 68%,
+    rgba(255, 255, 255, 0.55) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* --------------------------------------------------------------------------
+   Surfaces
+   --------------------------------------------------------------------------
+   In `@layer components` for the same reason as the base rules above: these set
+   a full `border` shorthand, and unlayered they would beat every `border-*`
+   utility applied alongside them — so a card whose code asked for a brand or
+   danger border silently got the default one instead.
+   -------------------------------------------------------------------------- */
+
+@layer components {
+  .panel {
+    background-image: linear-gradient(160deg, rgba(58, 78, 88, 0.42) 0%, rgba(29, 35, 39, 0.72) 62%),
+      linear-gradient(0deg, var(--wall-800), var(--wall-800));
+    border: 1px solid rgba(148, 196, 208, 0.14);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+      0 24px 60px -28px rgba(0, 0, 0, 0.95);
+  }
+
+  .panel-inset {
+    background-color: rgba(14, 20, 23, 0.55);
+    border: 1px solid rgba(148, 196, 208, 0.1);
+  }
+}
+
+.brand-glow {
+  box-shadow:
+    0 0 0 1px rgba(92, 240, 247, 0.55),
+    0 0 26px -6px rgba(92, 240, 247, 0.5);
+}
+
+/* --------------------------------------------------------------------------
+   Motion
+   -------------------------------------------------------------------------- */
+
+@keyframes crown-sheen {
+  0% {
+    background-position: -160% 0;
+  }
+  100% {
+    background-position: 260% 0;
+  }
+}
+
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    100deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.42) 50%,
+    transparent 62%
+  );
+  background-size: 220% 100%;
+  animation: crown-sheen 4.6s ease-in-out infinite;
+  mix-blend-mode: overlay;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(240%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2.4s ease-in-out infinite;
+}
+
+/* --------------------------------------------------------------------------
+   Scrollbars
+   -------------------------------------------------------------------------- */
+
+.hud-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--wall-500) transparent;
+}
+.hud-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.hud-scroll::-webkit-scrollbar-track {
+  background: rgba(14, 20, 23, 0.6);
+}
+.hud-scroll::-webkit-scrollbar-thumb {
+  background: var(--wall-500);
+  border-radius: 999px;
+  border: 2px solid rgba(14, 20, 23, 0.9);
+}
+.hud-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--wall-400);
+}
+
+/* Remove number input spinners — the roster counter is custom */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheen::after,
+  .animate-rise,
+  .animate-shimmer {
+    animation: none !important;
+  }
+}

@@ -1,0 +1,189 @@
+// KSU Crown — registration database.
+//
+// Replaces the Google Sheets backend that used to be the only store. The sheet
+// is still available as an *export* (see /api/admin/export/sheets) but Prisma is
+// the source of truth: it is what makes unique team names, OTP verification and
+// self-service edits possible.
+//
+// Local development and production both point at PostgreSQL (Vercel Postgres /
+// Neon in production) — see DATABASE_URL in .env.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7 moved the connection URL out of the schema: it now lives in
+// prisma.config.ts for the CLI (migrate/generate) and in the driver adapter
+// passed to `new PrismaClient()` at runtime. See src/lib/db.ts.
+datasource db {
+  provider = "postgresql"
+}
+
+/// One team registration. `reference` is the code the team keeps and uses to
+/// return and edit their entry.
+model Team {
+  id             String   @id @default(cuid())
+  reference      String   @unique
+  /// The display name, always normalised to start with "Team".
+  teamName       String
+  /// Lower-cased, whitespace-collapsed name. This is the unique key, so two
+  /// teams cannot register the same name in different casing.
+  teamNameKey    String   @unique
+  tournamentName String
+  /// "male" | "female"
+  gender         String
+  gameId         String
+  gameName       String
+  leaderIndex    Int      @default(0)
+  /// When the captain confirmed they had read the privacy notice and that every
+  /// member knows their details are shared. NULL means consent was not required
+  /// when this entry was made, which is why it is nullable rather than defaulted:
+  /// inventing a timestamp would fabricate a decision nobody made.
+  consentedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  members Member[]
+
+  @@index([gameId])
+  @@index([gender])
+  @@index([createdAt])
+}
+
+/// One roster slot — a player, a substitute or a coach.
+model Member {
+  id               String @id @default(cuid())
+  teamId           String
+  team             Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  /// Position within the roster, in the order the captain entered it.
+  position         Int
+  fullName         String
+  /// In-game handle. Empty for coaches, who need not have one.
+  gameTag          String @default("")
+  universityId     String
+  universityName   String
+  universityRegion String
+  /// Globally unique: the same address cannot join two teams.
+  email            String @unique
+  /// Null for coaches, who need not be students. Nullable so the unique index
+  /// tolerates many of them — PostgreSQL allows repeated NULLs.
+  studentId        String? @unique
+  discord          String
+  phone            String
+  /// "STARTER" | "SUBSTITUTE" | "COACH"
+  role             String @default("STARTER")
+  /// Organiser-defined answers, stored as [{ id, label, value }].
+  requirements     Json   @default("[]")
+  createdAt        DateTime @default(now())
+
+  @@unique([teamId, position])
+  @@index([teamId])
+}
+
+/// The tournament settings the organiser edits in the admin console. A single
+/// row (id = 1) whose `data` is the normalised TournamentConfig.
+model Config {
+  id        Int      @id @default(1)
+  data      Json
+  updatedAt DateTime @updatedAt
+}
+
+/// A one-time passcode. Only the hash is stored, so a database leak does not
+/// hand over working codes.
+model OtpCode {
+  id         String    @id @default(cuid())
+  email      String
+  /// "player-email" verifies a roster member; "edit-access" unlocks self-service editing.
+  purpose    String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([email, purpose])
+  @@index([expiresAt])
+  /// Supports the site-wide ceiling (`countAllRecentOtps`), which filters on both columns.
+  /// That count runs on a public endpoint, so without this index an abuse-control check
+  /// would itself become the expensive thing to call.
+  @@index([purpose, createdAt])
+}
+
+/// A game logo, validated to a fixed square size before it is stored. Bytes live
+/// in the database because Vercel's filesystem is ephemeral, and are served back
+/// through /api/games/[gameId]/logo.
+model GameLogo {
+  gameId    String   @id
+  mimeType  String
+  width     Int
+  height    Int
+  size      Int
+  bytes     Bytes
+  updatedAt DateTime @updatedAt
+}
+
+/// Someone the grand admin has granted access to the organiser console.
+///
+/// The grand admin is not a row here: they hold `ADMIN_SECRET`, which is a
+/// deployment secret rather than data, so it cannot be granted away from a web
+/// form or leaked by reading this table. This table is only the list of *other*
+/// people, and it is what an emailed code is checked against — an address that is
+/// not here never receives a code and can never sign in.
+model StaffAccess {
+  id          String    @id @default(cuid())
+  /// Lower-cased on the way in. The identity of the grant: two rows differing
+  /// only in case would be the same person with two grants.
+  email       String    @unique
+  /// Why this person has access, in the grand admin's words. Shown back to them
+  /// so a year-old grant is not a mystery.
+  note        String    @default("")
+  addedAt     DateTime  @default(now())
+  /// Last time they completed a sign-in, so an unused grant is visible.
+  lastLoginAt DateTime?
+  /// When the grant was withdrawn, or NULL while it is live. Revoking keeps the
+  /// row so the audit trail survives the decision — and so re-granting the same
+  /// address does not silently inherit the old `addedAt`.
+  revokedAt   DateTime?
+}
+
+/// The grand admin's password, stored as a hash.
+///
+/// Until this existed the grand admin *was* the deployment secret in the environment —
+/// not a row, so the ability to grant access could not be given away from a web form.
+/// This row keeps that property while letting the password be changed without a redeploy.
+///
+/// `ADMIN_SECRET` remains the root credential and still signs in, which matters twice
+/// over: the first owner session has to come from somewhere in order to set this row, and
+/// a forgotten password must never mean being locked out of your own tournament.
+///
+/// One row, enforced by a fixed `id`. Two rows would be two passwords with no rule about
+/// which wins, which is how a "change the password" feature turns into a back door.
+///
+/// The hash is peppered with a secret derived from `ADMIN_SECRET`, so this table alone is
+/// not enough to attack it — see `src/lib/admin-credential.ts`.
+model AdminCredential {
+  /// Always "owner". A single-row table, made explicit rather than implied.
+  id           String   @id @default("owner")
+  /// `scrypt-pepper:<salt>:<digest>`. Never the password.
+  passwordHash String
+  /// When it was last set, so the console can say how old the credential is.
+  updatedAt    DateTime @updatedAt
+  /// Which door it was set from, for the audit trail.
+  updatedVia   String   @default("console")
+}
+
+/// A game's rulebook — the document teams must read before they can submit.
+///
+/// One per game, keyed by `gameId` exactly like `GameLogo`, because each title is
+/// played by different rules and a team only ever needs the rules for the game it
+/// entered. The bytes live here rather than on disk because Vercel's filesystem is
+/// ephemeral — the same reason as the logos.
+model Rulebook {
+  gameId    String   @id
+  mimeType  String
+  size      Int
+  bytes     Bytes
+  /// What the organisers call this version, shown to teams next to the viewer.
+  title     String   @default("")
+  updatedAt DateTime @updatedAt
+}
