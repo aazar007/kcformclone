@@ -12,8 +12,4 @@ export default definePrismaConfig({
   orm: ormConfig({
     // keep your existing contract / output / db settings here
   }),
-  composer: composer({
-    extensions: [prismaCloud(), nodeBuild()],
-    state: prismaState(),
-  }),
 });
