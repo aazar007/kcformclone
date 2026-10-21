@@ -3,7 +3,6 @@ import { definePrismaConfig } from 'prisma/config';
 import { defineConfig as ormConfig, prisma7Schema } from '@prisma/orm-postgres/config';
 
 loadEnv({ path: '.env' });
-loadEnv({ path: '.env.local', override: true });
 
 export default definePrismaConfig({
   orm: ormConfig({
