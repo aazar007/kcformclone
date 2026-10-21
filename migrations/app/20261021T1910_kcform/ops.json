@@ -1,0 +1,880 @@
+[
+  {
+    "id": "schema.public",
+    "label": "Create schema \"public\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres"
+    },
+    "precheck": [],
+    "execute": [
+      {
+        "description": "Create schema \"public\"",
+        "sql": "CREATE SCHEMA IF NOT EXISTS \"public\"",
+        "params": []
+      }
+    ],
+    "postcheck": []
+  },
+  {
+    "id": "table.AdminCredential",
+    "label": "Create table \"AdminCredential\"",
+    "summary": "Creates table \"AdminCredential\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "AdminCredential"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"AdminCredential\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"AdminCredential\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"AdminCredential\"",
+        "sql": "CREATE TABLE \"public\".\"AdminCredential\" (\n  \"id\" text DEFAULT 'owner' NOT NULL,\n  \"passwordHash\" text NOT NULL,\n  \"updatedAt\" timestamp(3) NOT NULL,\n  \"updatedVia\" text DEFAULT 'console' NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"AdminCredential\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"AdminCredential\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.Config",
+    "label": "Create table \"Config\"",
+    "summary": "Creates table \"Config\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "Config"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"Config\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Config\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"Config\"",
+        "sql": "CREATE TABLE \"public\".\"Config\" (\n  \"data\" jsonb NOT NULL,\n  \"id\" int4 DEFAULT 1 NOT NULL,\n  \"updatedAt\" timestamp(3) NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"Config\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Config\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.GameLogo",
+    "label": "Create table \"GameLogo\"",
+    "summary": "Creates table \"GameLogo\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "GameLogo"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"GameLogo\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"GameLogo\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"GameLogo\"",
+        "sql": "CREATE TABLE \"public\".\"GameLogo\" (\n  \"bytes\" bytea NOT NULL,\n  \"gameId\" text NOT NULL,\n  \"height\" int4 NOT NULL,\n  \"mimeType\" text NOT NULL,\n  \"size\" int4 NOT NULL,\n  \"updatedAt\" timestamp(3) NOT NULL,\n  \"width\" int4 NOT NULL,\n  PRIMARY KEY (\"gameId\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"GameLogo\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"GameLogo\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.Member",
+    "label": "Create table \"Member\"",
+    "summary": "Creates table \"Member\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "Member"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"Member\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Member\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"Member\"",
+        "sql": "CREATE TABLE \"public\".\"Member\" (\n  \"createdAt\" timestamp(3) DEFAULT (now()) NOT NULL,\n  \"discord\" text NOT NULL,\n  \"email\" text NOT NULL,\n  \"fullName\" text NOT NULL,\n  \"gameTag\" text DEFAULT '' NOT NULL,\n  \"id\" text NOT NULL,\n  \"phone\" text NOT NULL,\n  \"position\" int4 NOT NULL,\n  \"requirements\" jsonb DEFAULT '[]'::jsonb NOT NULL,\n  \"role\" text DEFAULT 'STARTER' NOT NULL,\n  \"studentId\" text,\n  \"teamId\" text NOT NULL,\n  \"universityId\" text NOT NULL,\n  \"universityName\" text NOT NULL,\n  \"universityRegion\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"Member\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Member\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.OtpCode",
+    "label": "Create table \"OtpCode\"",
+    "summary": "Creates table \"OtpCode\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "OtpCode"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"OtpCode\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"OtpCode\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"OtpCode\"",
+        "sql": "CREATE TABLE \"public\".\"OtpCode\" (\n  \"attempts\" int4 DEFAULT 0 NOT NULL,\n  \"codeHash\" text NOT NULL,\n  \"consumedAt\" timestamp(3),\n  \"createdAt\" timestamp(3) DEFAULT (now()) NOT NULL,\n  \"email\" text NOT NULL,\n  \"expiresAt\" timestamp(3) NOT NULL,\n  \"id\" text NOT NULL,\n  \"purpose\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"OtpCode\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"OtpCode\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.Rulebook",
+    "label": "Create table \"Rulebook\"",
+    "summary": "Creates table \"Rulebook\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "Rulebook"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"Rulebook\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Rulebook\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"Rulebook\"",
+        "sql": "CREATE TABLE \"public\".\"Rulebook\" (\n  \"bytes\" bytea NOT NULL,\n  \"gameId\" text NOT NULL,\n  \"mimeType\" text NOT NULL,\n  \"size\" int4 NOT NULL,\n  \"title\" text DEFAULT '' NOT NULL,\n  \"updatedAt\" timestamp(3) NOT NULL,\n  PRIMARY KEY (\"gameId\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"Rulebook\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Rulebook\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.StaffAccess",
+    "label": "Create table \"StaffAccess\"",
+    "summary": "Creates table \"StaffAccess\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "StaffAccess"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"StaffAccess\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"StaffAccess\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"StaffAccess\"",
+        "sql": "CREATE TABLE \"public\".\"StaffAccess\" (\n  \"addedAt\" timestamp(3) DEFAULT (now()) NOT NULL,\n  \"email\" text NOT NULL,\n  \"id\" text NOT NULL,\n  \"lastLoginAt\" timestamp(3),\n  \"note\" text DEFAULT '' NOT NULL,\n  \"revokedAt\" timestamp(3),\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"StaffAccess\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"StaffAccess\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.Team",
+    "label": "Create table \"Team\"",
+    "summary": "Creates table \"Team\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "Team"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"Team\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Team\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"Team\"",
+        "sql": "CREATE TABLE \"public\".\"Team\" (\n  \"consentedAt\" timestamp(3),\n  \"createdAt\" timestamp(3) DEFAULT (now()) NOT NULL,\n  \"gameId\" text NOT NULL,\n  \"gameName\" text NOT NULL,\n  \"gender\" text NOT NULL,\n  \"id\" text NOT NULL,\n  \"leaderIndex\" int4 DEFAULT 0 NOT NULL,\n  \"reference\" text NOT NULL,\n  \"teamName\" text NOT NULL,\n  \"teamNameKey\" text NOT NULL,\n  \"tournamentName\" text NOT NULL,\n  \"updatedAt\" timestamp(3) NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"Team\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Team\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Member.Member_email_key",
+    "label": "Create index \"Member_email_key\" on \"Member\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Member_email_key",
+        "table": "Member"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Member_email_key\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Member_email_key\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Member_email_key\"",
+        "sql": "CREATE UNIQUE INDEX \"Member_email_key\" ON \"public\".\"Member\" (\"email\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Member_email_key\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Member_email_key\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Member.Member_studentId_key",
+    "label": "Create index \"Member_studentId_key\" on \"Member\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Member_studentId_key",
+        "table": "Member"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Member_studentId_key\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Member_studentId_key\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Member_studentId_key\"",
+        "sql": "CREATE UNIQUE INDEX \"Member_studentId_key\" ON \"public\".\"Member\" (\"studentId\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Member_studentId_key\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Member_studentId_key\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Member.Member_teamId_idx",
+    "label": "Create index \"Member_teamId_idx\" on \"Member\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Member_teamId_idx",
+        "table": "Member"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Member_teamId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Member_teamId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Member_teamId_idx\"",
+        "sql": "CREATE INDEX \"Member_teamId_idx\" ON \"public\".\"Member\" (\"teamId\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Member_teamId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Member_teamId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Member.Member_teamId_position_key",
+    "label": "Create index \"Member_teamId_position_key\" on \"Member\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Member_teamId_position_key",
+        "table": "Member"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Member_teamId_position_key\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Member_teamId_position_key\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Member_teamId_position_key\"",
+        "sql": "CREATE UNIQUE INDEX \"Member_teamId_position_key\" ON \"public\".\"Member\" (\"teamId\", \"position\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Member_teamId_position_key\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Member_teamId_position_key\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.OtpCode.OtpCode_email_purpose_idx",
+    "label": "Create index \"OtpCode_email_purpose_idx\" on \"OtpCode\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "OtpCode_email_purpose_idx",
+        "table": "OtpCode"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"OtpCode_email_purpose_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"OtpCode_email_purpose_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"OtpCode_email_purpose_idx\"",
+        "sql": "CREATE INDEX \"OtpCode_email_purpose_idx\" ON \"public\".\"OtpCode\" (\"email\", \"purpose\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"OtpCode_email_purpose_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"OtpCode_email_purpose_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.OtpCode.OtpCode_expiresAt_idx",
+    "label": "Create index \"OtpCode_expiresAt_idx\" on \"OtpCode\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "OtpCode_expiresAt_idx",
+        "table": "OtpCode"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"OtpCode_expiresAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"OtpCode_expiresAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"OtpCode_expiresAt_idx\"",
+        "sql": "CREATE INDEX \"OtpCode_expiresAt_idx\" ON \"public\".\"OtpCode\" (\"expiresAt\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"OtpCode_expiresAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"OtpCode_expiresAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.OtpCode.OtpCode_purpose_createdAt_idx",
+    "label": "Create index \"OtpCode_purpose_createdAt_idx\" on \"OtpCode\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "OtpCode_purpose_createdAt_idx",
+        "table": "OtpCode"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"OtpCode_purpose_createdAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"OtpCode_purpose_createdAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"OtpCode_purpose_createdAt_idx\"",
+        "sql": "CREATE INDEX \"OtpCode_purpose_createdAt_idx\" ON \"public\".\"OtpCode\" (\"purpose\", \"createdAt\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"OtpCode_purpose_createdAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"OtpCode_purpose_createdAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.StaffAccess.StaffAccess_email_key",
+    "label": "Create index \"StaffAccess_email_key\" on \"StaffAccess\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "StaffAccess_email_key",
+        "table": "StaffAccess"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"StaffAccess_email_key\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"StaffAccess_email_key\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"StaffAccess_email_key\"",
+        "sql": "CREATE UNIQUE INDEX \"StaffAccess_email_key\" ON \"public\".\"StaffAccess\" (\"email\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"StaffAccess_email_key\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"StaffAccess_email_key\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Team.Team_createdAt_idx",
+    "label": "Create index \"Team_createdAt_idx\" on \"Team\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Team_createdAt_idx",
+        "table": "Team"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Team_createdAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Team_createdAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Team_createdAt_idx\"",
+        "sql": "CREATE INDEX \"Team_createdAt_idx\" ON \"public\".\"Team\" (\"createdAt\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Team_createdAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Team_createdAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Team.Team_gameId_idx",
+    "label": "Create index \"Team_gameId_idx\" on \"Team\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Team_gameId_idx",
+        "table": "Team"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Team_gameId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Team_gameId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Team_gameId_idx\"",
+        "sql": "CREATE INDEX \"Team_gameId_idx\" ON \"public\".\"Team\" (\"gameId\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Team_gameId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Team_gameId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Team.Team_gender_idx",
+    "label": "Create index \"Team_gender_idx\" on \"Team\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Team_gender_idx",
+        "table": "Team"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Team_gender_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Team_gender_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Team_gender_idx\"",
+        "sql": "CREATE INDEX \"Team_gender_idx\" ON \"public\".\"Team\" (\"gender\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Team_gender_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Team_gender_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Team.Team_reference_key",
+    "label": "Create index \"Team_reference_key\" on \"Team\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Team_reference_key",
+        "table": "Team"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Team_reference_key\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Team_reference_key\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Team_reference_key\"",
+        "sql": "CREATE UNIQUE INDEX \"Team_reference_key\" ON \"public\".\"Team\" (\"reference\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Team_reference_key\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Team_reference_key\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Team.Team_teamNameKey_key",
+    "label": "Create index \"Team_teamNameKey_key\" on \"Team\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Team_teamNameKey_key",
+        "table": "Team"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Team_teamNameKey_key\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Team_teamNameKey_key\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Team_teamNameKey_key\"",
+        "sql": "CREATE UNIQUE INDEX \"Team_teamNameKey_key\" ON \"public\".\"Team\" (\"teamNameKey\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Team_teamNameKey_key\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Team_teamNameKey_key\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.Member.Member_teamId_fkey",
+    "label": "Add foreign key \"Member_teamId_fkey\" on \"Member\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "Member_teamId_fkey",
+        "table": "Member"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"Member_teamId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "Member_teamId_fkey",
+          "public",
+          "\"public\".\"Member\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"Member_teamId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"Member\"\nADD CONSTRAINT \"Member_teamId_fkey\"\nFOREIGN KEY (\"teamId\")\nREFERENCES \"public\".\"Team\" (\"id\")\nON DELETE CASCADE\nON UPDATE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"Member_teamId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "Member_teamId_fkey",
+          "public",
+          "\"public\".\"Member\""
+        ]
+      }
+    ]
+  }
+]
