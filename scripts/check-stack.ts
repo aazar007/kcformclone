@@ -77,7 +77,9 @@ async function checkDatabase() {
   if (!url) {
     console.log("✖ DATABASE_URL is not set in .env — registration cannot work.");
     console.log("  Create a PostgreSQL database, set DATABASE_URL, then run:");
-    console.log("    npx prisma migrate dev\n");
+    /* `npx prisma` is Prisma 8 now, and 8 has no `migrate`. The npm script routes to the
+       v7 CLI, which owns the schema and the migration history. */
+    console.log("    npm run db:migrate\n");
     return false;
   }
 
@@ -103,10 +105,10 @@ async function checkDatabase() {
       console.log("  Set DATABASE_URL in .env.\n");
     } else if (/does not exist|P2021|relation|P1010|authentication|password/i.test(message)) {
       console.log("  The database may not be migrated yet, or the credentials are wrong. Try:");
-      console.log("    npx prisma migrate dev\n");
+      console.log("    npm run db:migrate\n");
     } else {
       console.log("  Check that PostgreSQL is running and that DATABASE_URL is correct.");
-      console.log("  If this is a fresh database, run: npx prisma migrate dev\n");
+      console.log("  If this is a fresh database, run: npm run db:migrate\n");
     }
     return false;
   }
