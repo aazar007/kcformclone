@@ -299,7 +299,7 @@ export const EN = {
   "verify.useDifferent": "Use a different address",
   "verify.sent": "We emailed a 6-digit code to {email}.",
   "verify.logged": "SMTP is not configured, so the code was written to the server log instead.",
-  "verify.enterValidFirst": "Enter a valid .edu.sa address first.",
+  "verify.enterValidFirst": "Enter a valid university email address first.",
   "verify.notThere": "Not there?",
   "verify.checkSpam": "Check your Spam or Junk folder",
   "verify.spamBody":
@@ -658,7 +658,7 @@ export const AR: Record<MessageKey, string> = {
   "verify.useDifferent": "استخدام بريد آخر",
   "verify.sent": "أرسلنا رمزًا من ٦ أرقام إلى {email}.",
   "verify.logged": "لم يتم ضبط SMTP، فتم تسجيل الرمز في سجل الخادم بدلًا من إرساله.",
-  "verify.enterValidFirst": "أدخل بريدًا صحيحًا ينتهي بـ .edu.sa أولًا.",
+  "verify.enterValidFirst": "أدخل بريدًا جامعيًا صحيحًا أولًا.",
   "verify.notThere": "لم تجده؟",
   "verify.checkSpam": "تحقّق من مجلد الرسائل غير المرغوب فيها",
   "verify.spamBody":
@@ -927,6 +927,7 @@ const MESSAGE_AR: Record<string, string> = {
   "Invalid university": "جامعة غير صالحة",
   "University is outside the allowed provinces": "الجامعة خارج المناطق المسموح بها",
   "This university is not available for this division": "هذه الجامعة غير متاحة في هذا القسم",
+  "Enter a valid email address": "أدخل بريدًا إلكترونيًا صحيحًا",
   "Must be a university email ending in .edu.sa": "يجب أن يكون بريدًا جامعيًا ينتهي بـ .edu.sa",
   "Email must end in .edu.sa": "يجب أن ينتهي البريد بـ .edu.sa",
   "Verify this address with the code we email you":
@@ -957,7 +958,7 @@ const MESSAGE_AR: Record<string, string> = {
 
   /* API errors the form displays verbatim. */
   "Enter a university email address ending in .edu.sa":
-    "أدخل بريدًا جامعيًا ينتهي بـ .edu.sa",
+    "أدخل بريدًا جامعيًا صحيحًا",
   "Enter the reference code from your confirmation": "أدخل رقم التسجيل من رسالة التأكيد",
   "No registration matches that reference code": "لا يوجد تسجيل مطابق لرقم التسجيل هذا",
   "That registration has no contact address on file. Contact the organisers.":
