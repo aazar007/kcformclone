@@ -50,7 +50,11 @@ export async function POST(request: Request) {
 
   if (!EMAIL_PATTERN.test(email)) {
     return NextResponse.json(
-      { error: "Enter a university email address ending in .edu.sa" },
+      /* Shape only. Whether the address belongs to the member's university is decided
+         where the university is known — `validateDraft` in the browser and
+         `validatePayload` on the server — because this endpoint is also used by the
+         edit flow, which has no university in hand. */
+      { error: "Enter a valid university email address" },
       { status: 400 },
     );
   }
