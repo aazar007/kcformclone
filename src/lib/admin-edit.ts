@@ -38,6 +38,7 @@ import {
   STUDENT_ID_PATTERN,
 } from "./validation";
 import { normalisePhone } from "./utils";
+import { acceptedEmailDomains, emailMatchesUniversity } from "./universities";
 
 /** One member as the admin form submits them. */
 interface AdminMember {
@@ -154,7 +155,13 @@ export function validateAdminTeamEdit(
 
     const email = asString(row?.email).toLowerCase();
     if (!EMAIL_PATTERN.test(email)) {
-      errors[`${prefix}.email`] = "Must be a university email ending in .edu.sa";
+      errors[`${prefix}.email`] = "Enter a valid email address";
+    } else if (university && !emailMatchesUniversity(email, university)) {
+      /* The same strict rule as the public form. Organisers can edit a team, and an
+         edit is not a way to put another institution's address on a roster — the
+         university on the row decides which domains are acceptable. */
+      errors[`${prefix}.email`] =
+        `${email} is not a ${university.name} address (expected ${acceptedEmailDomains(university)[0]})`;
     } else if (seenEmails.has(email)) {
       errors[`${prefix}.email`] = "Already used by another member";
     } else {
