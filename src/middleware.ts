@@ -91,6 +91,10 @@ export async function middleware(request: NextRequest) {
   if (process.env.CSP_STRICT === "0") {
     const response = route ? NextResponse.rewrite(route.url) : NextResponse.next();
     if (!dev) response.headers.set("Strict-Transport-Security", hsts);
+    /* Set on this branch too — see the note on the COEP block below. Turning the CSP
+       kill switch on must not also switch off the console's WASM isolation, or the
+       logo tool breaks in a way that looks unrelated to what was changed. */
+    if (route?.segment) response.headers.set("Cross-Origin-Embedder-Policy", "require-corp");
     return response;
   }
 
@@ -139,6 +143,34 @@ export async function middleware(request: NextRequest) {
      would pin `localhost` to HTTPS for every other project on the machine. */
   if (!dev) {
     response.headers.set("Strict-Transport-Security", hsts);
+  }
+
+  /*
+   * Cross-origin isolation, on the console only.
+   *
+   * The logo tool removes backgrounds with `@imgly/background-removal`, which drives
+   * ONNX Runtime's **threaded** WebAssembly build — it sets
+   * `ort.env.wasm.numThreads = navigator.hardwareConcurrency` unconditionally and loads
+   * `ort-wasm-simd-threaded.wasm`. That build needs `SharedArrayBuffer`, and browsers
+   * only expose `SharedArrayBuffer` to a **cross-origin isolated** document, which
+   * requires both `COOP: same-origin` (already sent, see `next.config.mjs`) and
+   * `COEP: require-corp`.
+   *
+   * Without it the symptom is misleading rather than obvious — the organiser sees
+   * `Failed to create session: "no available backend found. ERR: [wasm] TypeError: Load
+   * failed"`, which reads like a network or CDN problem. Measured on this deployment
+   * before the fix: `crossOriginIsolated: false`, `SharedArrayBuffer` undefined, while
+   * the CDN fetch returned 200 and a `blob:` module import succeeded — so neither CORS
+   * nor the CSP was at fault.
+   *
+   * **Scoped to the console on purpose.** `require-corp` makes the document refuse any
+   * cross-origin resource that has not opted in, and the public form has no need of that
+   * trade-off. The console loads only same-origin assets (its own bundles, the logo
+   * endpoints), so isolation is free there; the one cross-origin request it makes is the
+   * model download, and that host sends `access-control-allow-origin: *`.
+   */
+  if (route?.segment) {
+    response.headers.set("Cross-Origin-Embedder-Policy", "require-corp");
   }
 
   return response;
