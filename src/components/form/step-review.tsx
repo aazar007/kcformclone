@@ -19,7 +19,7 @@ import {
 import { cn, formatPhone, normalisePhone } from "@/lib/utils";
 
 import { gameById, rosterRulesFor, selectableUniversities } from "@/lib/tournament";
-import { countRoles, resolveRole } from "@/lib/validation";
+import { countRoles, effectiveLeaderIndex, resolveRole } from "@/lib/validation";
 import { normaliseTeamName } from "@/lib/team-name";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -154,7 +154,11 @@ export function StepReview({
   const rules = rosterRulesFor(config, game);
   const counts = countRoles(draft.members, rules);
   const universities = selectableUniversities(config, draft.gender);
-  const leader = draft.leaderIndex !== null ? draft.members[draft.leaderIndex] : null;
+  /* The leader the submission will actually carry — on a one-player roster that is
+     decided for the captain, so reading the raw `leaderIndex` here would show "—" for a
+     team that does have a leader. */
+  const leaderIdx = effectiveLeaderIndex(draft, rules);
+  const leader = leaderIdx !== null ? draft.members[leaderIdx] : null;
   const teamName = normaliseTeamName(draft.teamName);
 
   const universityNames = Array.from(
@@ -244,7 +248,7 @@ export function StepReview({
       >
         {draft.members.map((member, index) => {
           const role = resolveRole(member, rules);
-          const isLeader = draft.leaderIndex === index;
+          const isLeader = leaderIdx === index;
           const university = universities.find((entry) => entry.id === member.universityId);
           const phone = normalisePhone(member.phone);
           const verified =
