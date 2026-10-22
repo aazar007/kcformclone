@@ -352,6 +352,12 @@ export function RegistrationForm({
             // A position now means a different thing, so re-derive the roles.
             next.members = applyPositionRoles(next.members, game.squadSize);
 
+            /* A one-player roster has exactly one possible leader, so record it now
+               rather than leaving a null for validation to work around. The roster is
+               already sized to `starters`, and a 1v1 title has a bench of none, so
+               index 0 is the whole team. */
+            if (target === 1) next.leaderIndex = 0;
+
             if (removed > 0) {
               /* Just the numbers. The sentence is built when it is shown, so it
                  follows the language rather than the moment of the change. */
