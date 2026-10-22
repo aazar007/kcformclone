@@ -2,22 +2,19 @@ import "dotenv/config";
 import { defineConfig } from "prisma7/config";
 
 /**
- * Prisma **7** CLI configuration.
+ * Prisma 7 CLI configuration (`npm run prisma7 -- ...`).
  *
- * This is the same file the v7 CLI used before Prisma 8 was adopted, renamed so the two
- * versions stop fighting over one filename — they want incompatible shapes, and the v8
- * CLI cannot read `schema`/`datasource` while the v7 CLI cannot read `orm`.
+ * Prisma 7 still generates the client the app uses at runtime and owns the
+ * migrations in prisma/migrations. The Prisma 8 CLI (`prisma ...`) reads
+ * prisma.config.ts and is only used to emit the data contract for Prisma Cloud.
  *
- * Every v7 command names it explicitly:
- *
- *   node node_modules/prisma7/build/index.js migrate … --config prisma7.config.ts
- *
- * (see the `db:*` scripts). Prisma 7 still owns `schema.prisma` and the migration history;
- * Prisma 8 reads that schema through `prisma7Schema()` in `prisma.config.ts`.
+ * Prisma 7 no longer accepts a connection URL inside `schema.prisma` — the CLI
+ * reads it from here, and the runtime client gets it through the driver adapter
+ * in `src/lib/db.ts`. Both ultimately come from `DATABASE_URL`.
  *
  * `process.env` is read directly rather than through the `env()` helper so that
- * `prisma generate` still works on CI, where only a build-time subset of the environment
- * is present and `DATABASE_URL` may be absent.
+ * `generate` still works on CI, where only a build-time subset of the
+ * environment is present and `DATABASE_URL` may be absent.
  */
 export default defineConfig({
   schema: "prisma/schema.prisma",
