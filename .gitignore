@@ -16,5 +16,8 @@ next-env.d.ts
 *.sqlite
 *.sqlite3
 .vercel
-.prisma/
+
+# Prisma 8 / Composer output
 generated/
+.prisma-composer/
+.alchemy/
