@@ -13,8 +13,8 @@
 import { normaliseTeamName, needsTeamPrefix, teamNameKey } from "../src/lib/team-name";
 import { DEFAULT_TOURNAMENT, normaliseConfig, rosterRulesFor, selectableUniversities, type GameDefinition } from "../src/lib/tournament";
 import { SAUDI_REGIONS, regionLabel } from "../src/lib/regions";
-import { validateDraft, validatePayload, toPayload, personNameError, fieldStep, isStepValid, revealsImmediately, STEP_COUNT, STUDENT_ID_PATTERN, STUDENT_ID_MIN, STUDENT_ID_MAX, type RegistrationDraft, emptyMember } from "../src/lib/validation";
-import { readFileSync } from "node:fs";
+import { validateDraft, validatePayload, toPayload, personNameError, fieldStep, isStepValid, revealsImmediately, STEP_COUNT, STUDENT_ID_PATTERN, STUDENT_ID_MIN, STUDENT_ID_MAX, effectiveLeaderIndex, EMPTY_DRAFT, type RegistrationDraft, emptyMember } from "../src/lib/validation";
+import { existsSync, readFileSync } from "node:fs";
 import { hasArabicMessage, requestedLanguage, DEFAULT_LANGUAGE, roleLabelKey, arabicDigits, digitsOnly, toWesternDigits, t, EN, AR, translateMessage, type MessageKey } from "../src/lib/i18n";
 
 import { findBlockedTerm, gameTagPolicyError, moderate as moderateText, nameWarnings, personNamePolicyError, teamNamePolicyError } from "../src/lib/name-policy";
@@ -2380,10 +2380,42 @@ console.log("\n── The console is not at /admin ──");
   check("the middleware does not skip prefetch requests",
     /missing:/.test(middleware), false);
 
+  /*
+   * Cross-origin isolation, for the logo tool's WASM backend.
+   *
+   * `@imgly/background-removal` drives ONNX Runtime's threaded build, which needs
+   * `SharedArrayBuffer` — available only to a document that is both `COOP: same-origin`
+   * and `COEP: require-corp`. Without COEP the organiser got
+   * `no available backend found. ERR: [wasm] TypeError: Load failed`, which reads like a
+   * CDN or CORS problem; measured live, the CDN returned 200 and a `blob:` module import
+   * worked, while `crossOriginIsolated` was false and `SharedArrayBuffer` undefined.
+   */
+  check("the console is cross-origin isolated for its WASM logo tool",
+    /response\.headers\.set\("Cross-Origin-Embedder-Policy", "require-corp"\)/.test(middleware), true);
+  /* Scoped to the console: `require-corp` makes the document refuse cross-origin
+     resources that have not opted in, and the public form gains nothing from that. */
+  check("…and only on the console",
+    /if \(route\?\.segment\) \{\s*response\.headers\.set\("Cross-Origin-Embedder-Policy"/.test(middleware), true);
+  /* The kill switch must not switch this off too — an organiser turning CSP_STRICT off
+     to unbreak a page would otherwise break the logo tool for an unrelated-looking reason. */
+  check("…and the CSP kill switch does not disable it",
+    /CSP_STRICT === "0"[\s\S]{0,400}Cross-Origin-Embedder-Policy/.test(middleware), true);
+  /* COOP is the other half; it is set in next.config.mjs for every page. */
+  const nextConfig = readFileSync("next.config.mjs", "utf8");
+  check("COOP is still sent globally",
+    /key: "Cross-Origin-Opener-Policy", value: "same-origin"/.test(nextConfig), true);
+
+  /* The library's own error is misleading, so the code states the real requirement
+     before it gets that far. */
+  const logoPrepare = stripComments(readFileSync("src/lib/logo-prepare.ts", "utf8"));
+  check("the logo tool checks isolation before starting",
+    /if \(!globalThis\.crossOriginIsolated\)/.test(logoPrepare), true);
+  check("…and says what is actually wrong",
+    /cross-origin isolation|COOP \+ COEP/.test(logoPrepare), true);
+
   /* Belt and braces: the route refuses on its own, because a matcher is configuration
      and configuration is what gets edited later by someone who has not read it. */
-  const adminPage = stripComments(readFileSync("src/app/admin/page.tsx", "utf8"));
-  check("the console page requires the marker the middleware sets",
+  const adminPage = stripComments(readFileSync("src/app/admin/page.tsx", "utf8"));  check("the console page requires the marker the middleware sets",
     /headers\(\)\)\.get\(CONSOLE_HEADER\)/.test(adminPage) && /notFound\(\)/.test(adminPage), true);
   /* A constant marker would be one leaked string away from re-exposing the console, so
      the marker is the secret segment itself. */
@@ -3168,6 +3200,181 @@ console.log("\n── Transport and response headers ──");
      limitation stays in a comment and never appears in the code as if it were handled. */
   check("…and no code claims to attach headers to that redirect",
     /skipTrailingSlashRedirect/.test(stripComments(middleware)), false);
+}
+
+console.log("\n── Team leadership ──");
+{
+  /*
+   * A 1v1 title fields one player, so leadership is not a question.
+   *
+   * It used to be treated as one: choosing a 1v1 game rebuilt the roster to one row,
+   * the stored `leaderIndex` was cleared because it pointed past the end of the new
+   * roster, and validation then refused to submit with "Select a team leader" — on a
+   * team with nobody else to nominate. The only escape was a checkbox on the same row
+   * the captain had already filled in.
+   */
+  const solo = normaliseConfig({ ...DEFAULT_TOURNAMENT, maxRoster: 6 });
+  const soloGame = { squadSize: 1, maxSubstitutes: 0, maxCoaches: 0 };
+  const soloRules = rosterRulesFor(solo, soloGame);
+
+  const onePlayer = (leaderIndex: number | null): RegistrationDraft => ({
+    ...EMPTY_DRAFT,
+    teamName: "Solo Cup",
+    gender: "male",
+    gameId: "ea-fc-26",
+    members: [{ ...emptyMember("STARTER"), fullName: "Ali Hassan", requirements: {} }],
+    leaderIndex,
+  });
+
+  check("a one-player roster has exactly one candidate", soloRules.starters, 1);
+  check("…so leadership is automatic when the draft has no choice",
+    effectiveLeaderIndex(onePlayer(null), soloRules), 0);
+  check("…and a stale index cannot point outside the roster",
+    effectiveLeaderIndex(onePlayer(5), soloRules), 0);
+  check("…and the automatic leader passes validation", "leader" in validateDraft(
+    { ...onePlayer(null),
+      members: [{
+        fullName: "Ali Hassan", gameTag: "ALI", universityId: "ksu",
+        email: "ali@ksu.edu.sa", verifiedEmail: "ali@ksu.edu.sa", emailProof: "",
+        studentId: "441234567", discord: "ali", phone: "0501234567",
+        role: "STARTER", requirements: {},
+      }],
+    },
+    solo,).errors, false);
+
+  /* Two candidates means the captain really does choose, and nothing is inferred. */
+  const pairRules = rosterRulesFor(solo, { squadSize: 3, maxSubstitutes: 2, maxCoaches: 1 });
+  const pair = (leaderIndex: number | null): RegistrationDraft => ({
+    ...EMPTY_DRAFT,
+    gameId: "rocket-league",
+    members: [
+      { ...emptyMember("STARTER"), fullName: "A", requirements: {} },
+      { ...emptyMember("STARTER"), fullName: "B", requirements: {} },
+    ],
+    leaderIndex,
+  });
+  check("two candidates: no choice made stays unmade",
+    effectiveLeaderIndex(pair(null), pairRules), null);
+  check("two candidates: the tick stands",
+    effectiveLeaderIndex(pair(1), pairRules), 1);
+
+  /* A coach cannot lead — `validateDraft` refuses that already, so the helper must not
+     quietly promote one when the roster is one starter plus one coach. */
+  const starterAndCoach = rosterRulesFor(solo, { squadSize: 1, maxSubstitutes: 0, maxCoaches: 1 });
+  const withCoach: RegistrationDraft = {
+    ...EMPTY_DRAFT,
+    gameId: "ea-fc-26",
+    members: [
+      { ...emptyMember("STARTER"), fullName: "Player", requirements: {} },
+      { ...emptyMember("COACH"), fullName: "Coach", requirements: {} },
+    ],
+    leaderIndex: 1,
+  };
+  check("a coach is never the sole leader",
+    effectiveLeaderIndex(withCoach, starterAndCoach), 0);
+  check("…and the player is nominated instead, not the coach",
+    effectiveLeaderIndex(withCoach, starterAndCoach) === 1, false);
+
+  /* What reaches the API. The browser's draft may hold null; the submission must not
+     carry a leader index the server would read as "nobody". */
+  const submitted = toPayload(
+    { ...onePlayer(null),
+      members: [{
+        fullName: "Ali Hassan", gameTag: "ALI", universityId: "ksu",
+        email: "ali@ksu.edu.sa", verifiedEmail: "ali@ksu.edu.sa", emailProof: "",
+        studentId: "441234567", discord: "ali", phone: "0501234567",
+        role: "STARTER", requirements: {},
+      }],
+    },
+    solo,
+  );
+  check("a solo roster submits leader index 0", submitted.leaderIndex, 0);
+}
+
+console.log("\n── Prisma 8 alongside Prisma 7 ──");{
+  /*
+   * Two Prisma versions run at once here, on purpose.
+   *
+   * Prisma 7 still owns `schema.prisma` and the migrations; Prisma 8 reads that same file
+   * through `prisma7Schema()` as its contract source. That is Prisma's published path off
+   * 7, and it means adopting 8 never requires a big-bang rewrite of the data layer. What
+   * it *does* require is that the two never share a config file — v8 rejects `schema` and
+   * `datasource` as unknown sections, and v7 cannot read `orm` — so each CLI is given its
+   * own, and every command names the right one explicitly.
+   */
+  const read = (path: string) => stripComments(readFileSync(path, "utf8"));
+  const v8 = read("prisma.config.ts");
+  const v7 = read("prisma7.config.ts");
+  const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
+    scripts: Record<string, string>;
+    dependencies: Record<string, string>;
+    devDependencies: Record<string, string>;
+  };
+
+  check("the v8 config is a v8 config", /definePrismaConfig/.test(v8), true);
+  check("…and reads the v7 schema as its contract source",
+    /prisma7Schema\("prisma\/schema\.prisma"\)/.test(v8), true);
+  check("…and emits next to the app", /output: "src\/prisma"/.test(v8), true);
+  check("the v8 config does not carry v7-only sections",
+    /schema:|datasource:/.test(v8), false);
+
+  check("the v7 config imports the v7 package's own helper",
+    /from "prisma7\/config"/.test(v7), true);
+  check("…and keeps owning the schema and migrations",
+    /schema: "prisma\/schema\.prisma"/.test(v7) && /path: "prisma\/migrations"/.test(v7), true);
+
+  /* The v8 CLI has no `generate` — it is a different product surface (`contract`, `db`,
+     `migration`). Anything that still needs a client must name the v7 binary, or the
+     build fails with CLI.UNKNOWN_COMMAND. */
+  check("the build generates the client with v7", /prisma7/.test(pkg.scripts.build), true);
+  check("…and so does postinstall", /prisma7/.test(pkg.scripts.postinstall), true);
+  check("…because `prisma generate` does not exist in v8",
+    /prisma generate/.test(pkg.scripts.build), false);
+  check("migrations still run through v7",
+    /prisma7/.test(pkg.scripts["db:migrate"]) && /prisma7/.test(pkg.scripts["db:deploy"]), true);
+  /* Schema change → contract change, in one step, so the two cannot drift apart. */
+  check("a migration also re-emits the contract",
+    /contract:emit/.test(pkg.scripts["db:migrate"]), true);
+
+  check("the v8 runtime is a production dependency",
+    "@prisma/orm-postgres" in pkg.dependencies, true);
+  check("…and so is the polyfill it peers on",
+    "temporal-polyfill" in pkg.dependencies, true);
+  /* CLIs are build-time only: they must not end up in the deployed bundle. */
+  check("both CLIs are dev dependencies",
+    "prisma" in pkg.devDependencies && "prisma7" in pkg.devDependencies, true);
+  /* The v7 client is still what the app queries with, so it stays installed. */
+  check("the v7 client is still present while the port is incomplete",
+    "@prisma/client" in pkg.dependencies, true);
+
+  /* Laziness, for the same reason as the v7 client: `next build` imports this module
+     graph with no DATABASE_URL, and a client built at import time would fail the build. */
+  const client = read("src/prisma/db.ts");
+  check("the v8 client is built lazily", /export function getPrisma8\(\)/.test(client), true);
+  check("…and refuses politely when there is no database",
+    /DATABASE_URL is not set/.test(client), true);
+  check("…and reuses the pool across dev reloads",
+    /NODE_ENV !== "production"/.test(client), true);
+
+  /* The emitted contract is generated, committed, and the source of both the runtime's
+     model map and the compiler's types. */
+  check("the compiled contract is committed",
+    existsSync("src/prisma/contract.json") && existsSync("src/prisma/contract.d.ts"), true);
+  const emitted = JSON.parse(readFileSync("src/prisma/contract.json", "utf8")) as {
+    schemaVersion?: string;
+    profileHash?: string;
+    roots?: Record<string, { model?: string; namespace?: string }>;
+  };
+  check("…and is a versioned contract", typeof emitted.schemaVersion === "string", true);
+  check("…with a profile hash", typeof emitted.profileHash === "string", true);
+  /*
+   * Every model in the schema has to reach the contract, or a query against it fails at
+   * runtime with an unknown-model error rather than at build time. The eight models are
+   * the whole data layer, so this is cheap insurance against a silent emit that dropped
+   * one.
+   */
+  check("…and every model reached it", Object.keys(emitted.roots ?? {}).sort(),
+    ["AdminCredential", "Config", "GameLogo", "Member", "OtpCode", "Rulebook", "StaffAccess", "Team"]);
 }
 
 console.log("\n── The derived console path ──");
