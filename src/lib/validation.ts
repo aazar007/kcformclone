@@ -26,17 +26,31 @@ import {
   teamNamePolicyError,
   type NameCheckOptions,
 } from "./name-policy";
-import { domainOf, normalisePhone } from "./utils";
+import { normalisePhone } from "./utils";
+import {
+  UNIVERSITIES,
+  acceptedEmailDomains,
+  emailDomainOf,
+  emailMatchesUniversity,
+} from "./universities";
 
 /* ------------------------------------------------------------------ */
 /* Field patterns                                                      */
 /* ------------------------------------------------------------------ */
 
 /**
- * University email. The competition requires every member address to end in
- * `.edu.sa`, so at least one domain label must precede that suffix.
+ * The *shape* of an email address.
+ *
+ * This used to demand an `.edu.sa` suffix, which was the whole rule before each
+ * university's own domains were enforced. Now that the domain must belong to the
+ * selected institution, that suffix test is both redundant and wrong: it refused
+ * `@alfaisal.edu`, which is a real address for a university on this list.
+ *
+ * So this checks the shape only — `local@label(.label)+.tld` — and the authority is
+ * `emailMatchesUniversity`, which cannot be satisfied by an address outside the chosen
+ * university's domains.
  */
-export const EMAIL_PATTERN = /^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.edu\.sa$/i;
+export const EMAIL_PATTERN = /^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/i;
 
 /** Saudi mobile: 05XXXXXXXX, 5XXXXXXXX, 9665XXXXXXXX or +9665XXXXXXXX. */
 export const PHONE_PATTERN = /^(?:\+?966|0)?5\d{8}$/;
@@ -194,7 +208,19 @@ export function revealsImmediately(
          keystroke would train the captain to ignore the field. */
       const at = value.lastIndexOf("@");
       if (at === -1 || !value.slice(at + 1).includes(".")) return false;
-      return !EMAIL_PATTERN.test(value);
+      if (!EMAIL_PATTERN.test(value)) return true;
+
+      /* No university is in hand here, so this can only answer "is this a domain any
+         university in the list uses?". That is still worth saying at once: a typed
+         `@gmail.com` is wrong whatever is selected, and waiting for the step to be
+         submitted to mention it wastes the moment the captain is looking at the field.
+         The *per-university* answer needs the selection and lives in `validateDraft`. */
+      const domain = emailDomainOf(value);
+      return !UNIVERSITIES.some((university) =>
+        acceptedEmailDomains(university).some(
+          (allowed) => domain === allowed || domain.endsWith(`.${allowed}`),
+        ),
+      );
     }
   }
 }
@@ -609,7 +635,13 @@ export function validateDraft(
     if (!email) {
       errors[`${prefix}.email`] = "Required";
     } else if (!EMAIL_PATTERN.test(email)) {
-      errors[`${prefix}.email`] = "Must be a university email ending in .edu.sa";
+      errors[`${prefix}.email`] = "Enter a valid email address";
+    } else if (chosen && !emailMatchesUniversity(email, chosen)) {
+      /* Before the verification check, deliberately. The other order told a captain to
+         verify an address that could never be accepted — which sends a real code to the
+         wrong mailbox and only then refuses the entry, at the end of the form. Saying it
+         now costs one message instead of an email and a wasted trip. */
+      errors[`${prefix}.email`] = `${email} is not a ${chosen.name} address (expected ${acceptedEmailDomains(chosen)[0]})`;
     } else if (member.verifiedEmail.trim().toLowerCase() !== email.toLowerCase()) {
       // The client only tracks *which* address was acknowledged; the signed proof
       // is checked by the API. Editing the address un-acknowledges it.
@@ -621,17 +653,6 @@ export function validateDraft(
         errors[`${prefix}.email`] = `Already used by member ${first + 1}`;
       } else {
         seenEmails.set(key, index);
-        // Soft check: the address should belong to the university picked above.
-        const domain = domainOf(email);
-        if (
-          chosen &&
-          chosen.emailDomains.length > 0 &&
-          !chosen.emailDomains.some((d) => domain === d || domain.endsWith(`.${d}`))
-        ) {
-          warnings.push(
-            `${email} is not a ${chosen.name} address (expected ${chosen.emailDomains[0]})`,
-          );
-        }
       }
     }
 
@@ -957,7 +978,12 @@ export function validatePayload(
 
       const email = typeof member.email === "string" ? member.email.trim().toLowerCase() : "";
       if (!EMAIL_PATTERN.test(email)) {
-        errors[`member.${index}.email`] = "Email must end in .edu.sa";
+        errors[`member.${index}.email`] = "Enter a valid email address";
+      } else if (university && !emailMatchesUniversity(email, university)) {
+        /* The server's copy of the same strict rule. The browser already refuses this,
+           but the API is reachable without the browser, and a roster that names one
+           university must not carry another institution's address. */
+        errors[`member.${index}.email`] = `${email} is not a ${university.name} address (expected ${acceptedEmailDomains(university)[0]})`;
       } else if (seenEmails.has(email)) {
         errors[`member.${index}.email`] = "Duplicate email";
       } else {
