@@ -1,9 +1,15 @@
 /**
  * Saudi Arabian universities.
  *
- * `emailDomains` powers the soft warning that catches a student picking the
- * wrong university. The hard rule stays as specified — every member email must
- * end in `.edu.sa`.
+ * **Each university accepts only its own domains**, and the address a member enters must
+ * belong to the university they selected — a KSU team cannot roster somebody with an
+ * IAU address. That check was a soft warning until it was made strict; see
+ * `acceptedEmailDomains` for how the accepted set is decided.
+ *
+ * `emailDomains` is the institution's own domain(s). Where a university issues students
+ * a **separate** subdomain (King Saud's `student.ksu.edu.sa`, King Abdulaziz's
+ * `stu.kau.edu.sa`), `studentDomains` names it and then *replaces* `emailDomains` for
+ * validation — a student address is the only thing a roster accepts.
  *
  * `region` is derived from `city` rather than typed by hand, so the province a
  * team qualifies under can never drift from the institution's location.
@@ -21,6 +27,20 @@ export interface University {
   /** A few institutions accept only women, so they are hidden from the male division. */
   womenOnly?: boolean;
   emailDomains: string[];
+  /**
+   * The domains students are actually issued, when that differs from the
+   * institution's own.
+   *
+   * **When this is present it is the complete accepted set** — `emailDomains` is not
+   * also accepted. That is the point: King Saud students hold
+   * `@student.ksu.edu.sa`, and the request was that nothing else gets through.
+   *
+   * Left undefined for every institution whose students use the main domain, so the
+   * fallback keeps them registrable. Adding a university's student subdomain is a
+   * one-line change here — deliberately, because guessing a subdomain that does not
+   * exist would lock out every real student at that institution.
+   */
+  studentDomains?: string[];
   /** Shown as a hint when the institution's domain is unusual. */
   note?: string;
   /** Derived from `city` — the province this institution competes in. */
@@ -31,8 +51,8 @@ export interface University {
 
 /** The curated list, before the province is derived from each city. */
 const BASE_UNIVERSITIES: Omit<University, "region">[] = [
-  { id: "ksu", name: "King Saud University", nameAr: "جامعة الملك سعود", city: "Riyadh", sector: "Government", emailDomains: ["ksu.edu.sa"] },
-  { id: "kau", name: "King Abdulaziz University", nameAr: "جامعة الملك عبدالعزيز", city: "Jeddah", sector: "Government", emailDomains: ["kau.edu.sa", "stu.kau.edu.sa"] },
+  { id: "ksu", name: "King Saud University", nameAr: "جامعة الملك سعود", city: "Riyadh", sector: "Government", emailDomains: ["ksu.edu.sa"], studentDomains: ["student.ksu.edu.sa"] },
+  { id: "kau", name: "King Abdulaziz University", nameAr: "جامعة الملك عبدالعزيز", city: "Jeddah", sector: "Government", emailDomains: ["kau.edu.sa"], studentDomains: ["stu.kau.edu.sa"] },
   { id: "kfupm", name: "King Fahd University of Petroleum & Minerals", nameAr: "جامعة الملك فهد للبترول والمعادن", city: "Dhahran", sector: "Government", emailDomains: ["kfupm.edu.sa"] },
   { id: "kaust", name: "King Abdullah University of Science and Technology", nameAr: "جامعة الملك عبدالله للعلوم والتقنية", city: "Thuwal", sector: "Government", emailDomains: ["kaust.edu.sa"] },
   { id: "iau", name: "Imam Abdulrahman Bin Faisal University", nameAr: "جامعة الإمام عبدالرحمن بن فيصل", city: "Dammam", sector: "Government", emailDomains: ["iau.edu.sa"] },
@@ -98,4 +118,37 @@ export function representedRegions(): SaudiRegion[] {
 
 export function universityById(id: string) {
   return UNIVERSITIES.find((u) => u.id === id) ?? null;
+}
+
+/**
+ * The domains an address may use to count as a member of this university.
+ *
+ * `studentDomains` wins outright when it exists, rather than being added to the
+ * institutional list — that is what makes "KSU students use `student.ksu.edu.sa`" a rule
+ * instead of a suggestion. Everyone else falls back to the institution's own domain,
+ * which is already strict to that university.
+ */
+export function acceptedEmailDomains(university: University): string[] {
+  return university.studentDomains?.length ? university.studentDomains : university.emailDomains;
+}
+
+/** The domain part of an address, lower-cased. Exported for the form's live hint. */
+export function emailDomainOf(email: string): string {
+  const at = email.lastIndexOf("@");
+  return at === -1 ? "" : email.slice(at + 1).trim().toLowerCase();
+}
+
+/**
+ * Whether an address belongs to this university.
+ *
+ * A subdomain of an accepted domain counts — `mail.student.ksu.edu.sa` is still King
+ * Saud — but nothing outside it does. `gmail.com`, a lookalike such as
+ * `ksu.edu.sa.example.com`, and a different university's domain are all refused.
+ */
+export function emailMatchesUniversity(email: string, university: University): boolean {
+  const domain = emailDomainOf(email);
+  if (!domain) return false;
+  return acceptedEmailDomains(university).some(
+    (allowed) => domain === allowed.toLowerCase() || domain.endsWith(`.${allowed.toLowerCase()}`),
+  );
 }
