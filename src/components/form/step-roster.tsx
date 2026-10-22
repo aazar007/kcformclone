@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   Building2,
+  Check,
   Crown,
   Gamepad2,
   Hash,
@@ -25,7 +26,7 @@ import {
   type RosterRules,
   type RequirementDefinition,
 } from "@/lib/tournament";
-import { countRoles, emptyMember, EMAIL_PATTERN, resolveRole, revealsImmediately, STUDENT_ID_MAX } from "@/lib/validation";
+import { countRoles, effectiveLeaderIndex, emptyMember, EMAIL_PATTERN, resolveRole, revealsImmediately, STUDENT_ID_MAX } from "@/lib/validation";
 import { Field, RolePill } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -323,7 +324,12 @@ export function StepRoster({
     if (next.length === 0) return;
 
     update("members", next);
-    if (draft.leaderIndex === index) update("leaderIndex", null);
+    if (next.length === 1) {
+      /* Down to one person: that person leads, whoever was ticked before. Storing it
+         keeps the saved draft honest — `effectiveLeaderIndex` would resolve it anyway,
+         so this is consistency rather than the rule itself. */
+      update("leaderIndex", 0);
+    } else if (draft.leaderIndex === index) update("leaderIndex", null);
     else if (draft.leaderIndex !== null && draft.leaderIndex > index) {
       update("leaderIndex", draft.leaderIndex - 1);
     }
@@ -348,6 +354,15 @@ export function StepRoster({
   );
 
   const atCapacity = draft.members.length >= rules.maxTotal;
+
+  /* Who leads, and whether that was a decision anyone had to make.
+
+     A 1v1 title has one eligible member, so leadership is automatic — the box on that
+     row would otherwise sit unticked while validation refused to submit, on a team with
+     nobody else to nominate. */
+  const leaderIndex = effectiveLeaderIndex(draft, rules);
+  const leaderIsAutomatic =
+    draft.members.filter((member) => resolveRole(member, rules) !== "COACH").length === 1;
 
   /** Starters still needed to field a legal squad. */
   const startersRemaining = Math.max(0, rules.starters - counts.starters);
@@ -477,7 +492,7 @@ export function StepRoster({
         {draft.members.map((member, index) => {
           const role = resolveRole(member, rules);
           const isCoach = role === "COACH";
-          const isLeader = draft.leaderIndex === index;
+          const isLeader = leaderIndex === index;
           const emailDomain = domainOf(member.email.trim());
           const university = universities.find((entry) => entry.id === member.universityId);
           const domainMismatch =
@@ -544,27 +559,46 @@ export function StepRoster({
                 )}
 
                 <div className="ms-auto flex items-center gap-2">
-                  {/* Leader is a checkbox on the roster, not a separate step. */}
-                  {!isCoach && (
-                    <label
-                      className={cn(
-                        "flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-1.5 transition-colors",
-                        isLeader
-                          ? "border-brand/60 bg-brand/10 text-brand"
-                          : "border-[rgba(148,196,208,0.2)] text-ash hover:border-brand/40 hover:text-snow",
-                      )}
-                    >
-                      <Checkbox
-                        checked={isLeader}
-                        onChange={(checked) => update("leaderIndex", checked ? index : null)}
-                        aria-label={t("roster.makeLeader", { n: index + 1 })}
-                      />
-                      <Crown className="size-3.5" />
-                      <span className="text-[11px] font-bold tracking-wide">
-                        {t("roster.teamLeader")}
+                  {/* Leader is a checkbox on the roster, not a separate step.
+
+                      Except when there is nobody else it could be. On a 1v1 title the
+                      single player *is* the leader, and a tickable box there would be
+                      an invitation to untick the only legal answer — so it is shown as
+                      decided instead: same crown, no control. That is also why the
+                      stored `leaderIndex` does not have to be set for such a roster to
+                      validate; see `effectiveLeaderIndex`. */}
+                  {!isCoach &&
+                    (leaderIsAutomatic ? (
+                      <span
+                        className="flex items-center gap-2 rounded-xl border border-brand/60 bg-brand/10 px-3 py-1.5 text-brand"
+                        title={t("roster.leaderAutomatic")}
+                      >
+                        <Crown className="size-3.5" />
+                        <span className="text-[11px] font-bold tracking-wide">
+                          {t("roster.teamLeader")}
+                        </span>
+                        <Check className="size-3.5" />
                       </span>
-                    </label>
-                  )}
+                    ) : (
+                      <label
+                        className={cn(
+                          "flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-1.5 transition-colors",
+                          isLeader
+                            ? "border-brand/60 bg-brand/10 text-brand"
+                            : "border-[rgba(148,196,208,0.2)] text-ash hover:border-brand/40 hover:text-snow",
+                        )}
+                      >
+                        <Checkbox
+                          checked={isLeader}
+                          onChange={(checked) => update("leaderIndex", checked ? index : null)}
+                          aria-label={t("roster.makeLeader", { n: index + 1 })}
+                        />
+                        <Crown className="size-3.5" />
+                        <span className="text-[11px] font-bold tracking-wide">
+                          {t("roster.teamLeader")}
+                        </span>
+                      </label>
+                    ))}
 
                   <Button
                     type="button"
