@@ -13,7 +13,18 @@ const nextConfig = {
   /** Do not advertise the framework in a response header. */
   poweredByHeader: false,
 
-
+  /**
+   * Browser-side protections, sent on every response.
+   *
+   * - CSP: only this origin may serve scripts/styles/images/connections. The two
+   *   extra allowances exist for the admin logo tool, which loads its background-
+   *   removal model from staticimgly.com and runs it as a WebAssembly web worker.
+   *   `'unsafe-inline'` stays for scripts because Next's own hydration data and the
+   *   language bootstrap in layout.tsx are inline; move to nonces if you want it gone.
+   * - frame-ancestors / X-Frame-Options: nobody may embed the site (clickjacking).
+   * - nosniff, Referrer-Policy, Permissions-Policy: close off MIME sniffing, URL
+   *   leaks through the Referer header, and unused browser features.
+   */
   async headers() {
     const dev = process.env.NODE_ENV !== "production";
     /* The real policy is built per request in src/middleware.ts, with a nonce. This
@@ -123,6 +134,15 @@ const nextConfig = {
     ];
   },
 
+  /**
+   * Pin the tracing root to this project.
+   *
+   * Next walks up looking for a lockfile to decide what belongs in a serverless
+   * bundle. There is a stray `package-lock.json` in a parent directory on some
+   * machines, which makes it guess wrong — it warns about the ambiguity, and the
+   * traced output can then include or leave out the wrong files. Naming the root
+   * removes the guesswork.
+   */
   outputFileTracingRoot: projectRoot,
 };
 
