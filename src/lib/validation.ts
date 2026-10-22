@@ -407,6 +407,45 @@ export function countRoles(members: MemberDraft[], rules: RosterRules) {
   return { starters, substitutes, coaches };
 }
 
+/**
+ * Who the team leader is, once leadership has been decided.
+ *
+ * **When only one member can lead, that member leads — the question is not asked.**
+ * A 1v1 title fields a one-person roster, and making a captain tick a "team leader"
+ * box on the only row there is asks them to confirm a fact that has no alternative.
+ * It also went wrong in practice: choosing a 1v1 game rebuilds the roster, the old
+ * `leaderIndex` is dropped because it points past the end of the new one, and the
+ * captain is then blocked by "Select a team leader" on a team of one, with a
+ * checkbox on the *same row* being the only way out.
+ *
+ * Coaches are excluded because a coach cannot lead — `validateDraft` already refuses
+ * that, so counting them as candidates would invent a choice that is not allowed.
+ *
+ * Returns null when the roster holds nobody eligible, so the caller still reports
+ * "select a leader" rather than silently nominating an empty row.
+ */
+export function effectiveLeaderIndex(
+  draft: Pick<RegistrationDraft, "members" | "leaderIndex">,
+  rules: RosterRules,
+): number | null {
+  const eligible: number[] = [];
+  draft.members.forEach((member, index) => {
+    if (resolveRole(member, rules) !== "COACH") eligible.push(index);
+  });
+
+  /* Exactly one candidate: leadership is automatic, and it overrides whatever the
+     draft happens to hold — including a value that survived a roster resize. */
+  if (eligible.length === 1) return eligible[0];
+  if (eligible.length === 0) return null;
+
+  /* Several candidates: the captain's choice stands, but only if it still points at
+     somebody who can lead. A stale index after a removal must not silently nominate
+     a coach. */
+  const chosen = draft.leaderIndex;
+  if (chosen !== null && eligible.includes(chosen)) return chosen;
+  return null;
+}
+
 /* ------------------------------------------------------------------ */
 /* Validation                                                          */
 /* ------------------------------------------------------------------ */
@@ -636,7 +675,10 @@ export function validateDraft(
   }
 
   /* -------- Team leader -------- */
-  const leaderIndex = draft.leaderIndex;
+  /* The effective leader, not the raw index: a roster with a single eligible member
+     has already decided, and blocking that on a checkbox the captain never needed to
+     tick is how a 1v1 team got stuck. */
+  const leaderIndex = effectiveLeaderIndex(draft, rules);
   const leaderValid =
     leaderIndex !== null &&
     leaderIndex >= 0 &&
@@ -752,7 +794,9 @@ export function toPayload(draft: RegistrationDraft, config: TournamentConfig): R
         })),
       };
     }),
-    leaderIndex: draft.leaderIndex ?? 0,
+    /* The effective leader, so a one-player roster submits index 0 without the captain
+       having had to nominate them — the check above already agreed the roster is valid. */
+    leaderIndex: effectiveLeaderIndex(draft, rules) ?? 0,
     consentGiven: draft.consentGiven,
     rulesAccepted: draft.rulesAccepted,
   };
