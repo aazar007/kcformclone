@@ -206,11 +206,30 @@ function canvasToPng(canvas: HTMLCanvasElement): Promise<Blob> {
  * bundle — an organiser who is not uploading a logo should not download any of
  * it. The package also touches browser globals at load time, which is another
  * reason it must not be reached during a server render.
+ *
+ * **The page must be cross-origin isolated.** The library configures ONNX Runtime's
+ * threaded WebAssembly build (`ort-wasm-simd-threaded`) with
+ * `numThreads = navigator.hardwareConcurrency`, and that build needs
+ * `SharedArrayBuffer` — which browsers expose only to a document that is both
+ * `COOP: same-origin` and `COEP: require-corp`. `src/middleware.ts` sends those on the
+ * console for exactly this reason.
+ *
+ * Checked up front because the library's own failure is misleading. Without isolation it
+ * reports `no available backend found. ERR: [wasm] TypeError: Load failed`, which reads
+ * like a dead network or a wrong CDN path — and sent me looking at CORS and the CSP,
+ * both of which were fine. The real cause is a missing header, so say that.
  */
 async function removeBackground(
   file: File,
   onProgress?: (fraction: number, note: string) => void,
 ): Promise<Blob> {
+  if (!globalThis.crossOriginIsolated) {
+    throw new LogoPreparationError(
+      "Background removal needs cross-origin isolation (COOP + COEP), which this page " +
+        "is not receiving. The logo was resized instead.",
+    );
+  }
+
   const module = await import("@imgly/background-removal");
 
   const work = module.removeBackground(file, {
