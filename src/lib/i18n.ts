@@ -232,6 +232,10 @@ export const EN = {
   "roster.coachN": "Coach {n}",
   "roster.teamLeader": "Team leader",
   "roster.makeLeader": "Make member {n} the team leader",
+  /* Shown instead of the checkbox when the roster has one eligible member — a 1v1
+     title, where there is nobody else to nominate. */
+  "roster.leaderAutomatic":
+    "The only player on a 1v1 roster is the team leader automatically.",
   "roster.removePlayer": "Remove player {n}",
   "roster.removeCoach": "Remove coach {n}",
   "roster.needed": "{count} needed",
@@ -590,6 +594,8 @@ export const AR: Record<MessageKey, string> = {
   "roster.coachN": "المدرّب {n}",
   "roster.teamLeader": "قائد الفريق",
   "roster.makeLeader": "تعيين اللاعب {n} قائدًا للفريق",
+  "roster.leaderAutomatic":
+    "اللاعب الوحيد في قائمة 1 ضد 1 هو قائد الفريق تلقائيًا.",
   "roster.removePlayer": "حذف اللاعب {n}",
   "roster.removeCoach": "حذف المدرّب {n}",
   "roster.needed": "المطلوب {count}",
