@@ -18,6 +18,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { hasArabicMessage, requestedLanguage, DEFAULT_LANGUAGE, roleLabelKey, arabicDigits, digitsOnly, toWesternDigits, t, EN, AR, translateMessage, type MessageKey } from "../src/lib/i18n";
 
 import { findBlockedTerm, gameTagPolicyError, moderate as moderateText, nameWarnings, personNamePolicyError, teamNamePolicyError } from "../src/lib/name-policy";
+import { UNIVERSITIES, acceptedEmailDomains, emailMatchesUniversity } from "../src/lib/universities";
 import { readImageSize } from "../src/lib/image";
 import { makeProof, makeSkipProof, verifyProof, hashCode, generateCode, otpConfigured, safeEqual, OTP_MAX_ATTEMPTS } from "../src/lib/otp";
 import { plainText, teamToPlayerRows } from "../src/lib/sheet-export";
@@ -308,7 +309,9 @@ function draft(members: Partial<ReturnType<typeof emptyMember>>[], overrides: Pa
   };
 }
 
-const verified = { email: "a@ksu.edu.sa", verifiedEmail: "a@ksu.edu.sa", studentId: "1234", gameTag: "A#1", universityId: "ksu", fullName: "Ali Hassan", discord: "ali", phone: "0512345678" };
+/* KSU students hold `@student.ksu.edu.sa`; since the domain rule became strict to each
+   university, an `@ksu.edu.sa` address in a fixture is a validation error, not noise. */
+const verified = { email: "a@student.ksu.edu.sa", verifiedEmail: "a@student.ksu.edu.sa", studentId: "1234", gameTag: "A#1", universityId: "ksu", fullName: "Ali Hassan", discord: "ali", phone: "0512345678" };
 
 const fiveStarters = draft(Array.from({ length: 5 }, () => ({ ...verified })));
 // All five share one email → duplicate errors, but the starter count should be satisfied.
@@ -704,7 +707,10 @@ const adminMember = {
   fullName: "Ali Hassan",
   gameTag: "A#1",
   universityId: "ksu",
-  email: "admin.a@ksu.edu.sa",
+  /* King Saud students hold `@student.ksu.edu.sa`, and that subdomain is the *only*
+     accepted form since the strict rule landed — so a fixture on `@ksu.edu.sa` would
+     now fail validation, correctly. */
+  email: "admin.a@student.ksu.edu.sa",
   /* Real student numbers are 8–9 digits. These used to read `ADM0001`, which only
      passed because the rule allowed letters. */
   studentId: "445100001",
@@ -720,8 +726,8 @@ const adminBody = {
   leaderIndex: 0,
   members: [
     adminMember,
-    { ...adminMember, gameTag: "B#1", email: "admin.b@ksu.edu.sa", studentId: "445100002", discord: "ali_b" },
-    { ...adminMember, gameTag: "C#1", email: "admin.c@ksu.edu.sa", studentId: "445100003", discord: "ali_c" },
+    { ...adminMember, gameTag: "B#1", email: "admin.b@student.ksu.edu.sa", studentId: "445100002", discord: "ali_b" },
+    { ...adminMember, gameTag: "C#1", email: "admin.c@student.ksu.edu.sa", studentId: "445100003", discord: "ali_c" },
   ],
 };
 
@@ -743,7 +749,8 @@ const badEmail = validateAdminTeamEdit(
   adminConfig,
 );
 check("a bad email is refused", badEmail.ok, false);
-check("the error names the field", badEmail.ok ? null : badEmail.errors["member.0.email"], "Must be a university email ending in .edu.sa");
+check("the error names the field", badEmail.ok ? null : badEmail.errors["member.0.email"],
+  "nope@example.com is not a King Saud University address (expected student.ksu.edu.sa)");
 
 const duplicate = validateAdminTeamEdit(
   { ...adminBody, members: [adminMember, { ...adminMember, gameTag: "B#1", studentId: "445100002" }] },
@@ -1919,7 +1926,7 @@ console.log("\n── The rules acknowledgement ──");
     gameId: "ea-fc-26", gameName: "EA FC", leaderIndex: 0,
     consentGiven: true, members: [{
       fullName: "Ali Hassan", gameTag: "A#1", universityId: "ksu",
-      email: "a@ksu.edu.sa", emailProof: "x", studentId: "445123456",
+      email: "a@student.ksu.edu.sa", emailProof: "x", studentId: "445123456",
       discord: "ali", phone: "0512345678", role: "STARTER",
     }],
   };
@@ -3202,8 +3209,117 @@ console.log("\n── Transport and response headers ──");
     /skipTrailingSlashRedirect/.test(stripComments(middleware)), false);
 }
 
-console.log("\n── Team leadership ──");
+console.log("\n── University email domains ──");
 {
+  /*
+   * Each university accepts only its own domains.
+   *
+   * The rule was a **warning** before this: a team could enter any university's address
+   * and still submit, with the mismatch printed as a note nobody had to act on. It is
+   * now an error, checked in the browser, in the API, and in the admin console's edit
+   * path — because an organiser editing a team is not a way to put another
+   * institution's address on a roster either.
+   *
+   * King Saud is the case that needed the most care: its students hold
+   * `@student.ksu.edu.sa`, so the institutional `@ksu.edu.sa` is **not** accepted. That
+   * is deliberate, but it means a fixture on the parent domain is now a failure — which
+   * is why several in this file were corrected when the rule landed.
+   */
+  const ksu = UNIVERSITIES.find((u) => u.id === "ksu")!;
+  const kau = UNIVERSITIES.find((u) => u.id === "kau")!;
+  const kfupm = UNIVERSITIES.find((u) => u.id === "kfupm")!;
+  const alfaisal = UNIVERSITIES.find((u) => u.id === "alfaisal")!;
+
+  check("KSU students use the student subdomain",
+    acceptedEmailDomains(ksu), ["student.ksu.edu.sa"]);
+  check("a KSU student address is accepted",
+    emailMatchesUniversity("441313142@student.ksu.edu.sa", ksu), true);
+  check("…and the institutional domain is not", emailMatchesUniversity("ali@ksu.edu.sa", ksu), false);
+  check("…nor is another university's", emailMatchesUniversity("ali@kau.edu.sa", ksu), false);
+  check("…nor a public mailbox", emailMatchesUniversity("ali@gmail.com", ksu), false);
+  /* A lookalike that merely *contains* the domain must not pass. */
+  check("…nor a lookalike domain",
+    emailMatchesUniversity("ali@student.ksu.edu.sa.example.com", ksu), false);
+  /* A real subdomain of an accepted domain still belongs to the university. */
+  check("a deeper subdomain is still KSU",
+    emailMatchesUniversity("ali@mail.student.ksu.edu.sa", ksu), true);
+
+  check("KAU keeps its own student subdomain",
+    acceptedEmailDomains(kau), ["stu.kau.edu.sa"]);
+  check("KAU's institutional domain is refused too",
+    emailMatchesUniversity("ali@kau.edu.sa", kau), false);
+
+  /* Universities whose students use the main domain fall back to it — the strictness is
+     per institution, not a demand that every one has a subdomain. */
+  check("a university with no student subdomain accepts its own domain",
+    emailMatchesUniversity("ali@kfupm.edu.sa", kfupm), true);
+  check("…and rejects its neighbours'",
+    emailMatchesUniversity("ali@ksu.edu.sa", kfupm), false);
+
+  /* `.edu` rather than `.edu.sa` — the old pattern refused this outright, which made
+     Alfaisal unregistrable no matter which domain was typed. */
+  check("a university on .edu is accepted",
+    emailMatchesUniversity("ali@alfaisal.edu", alfaisal), true);
+
+  /* The form's live hint fires before the university is known, so it can only ask
+     "does any university use this domain?". A public mailbox is wrong regardless. */
+  check("a public mailbox is flagged as the address is typed",
+    revealsImmediately("email", "ali@gmail.com"), true);
+  check("a university address is not flagged",
+    revealsImmediately("email", "441313142@student.ksu.edu.sa"), false);
+  check("a half-typed address stays quiet", revealsImmediately("email", "ali@ksu"), false);
+
+  /* The roster draft refuses a wrong-domain address, and says which domain was wanted —
+     "wrong domain" alone leaves the reader guessing at a student subdomain they may not
+     know exists. */
+  const wrongDomain = validateDraft(
+    {
+      ...EMPTY_DRAFT,
+      teamName: "Domain Probe",
+      gender: "male",
+      gameId: "ea-fc-26",
+      leaderIndex: 0,
+      members: [{
+        fullName: "Ali Hassan", gameTag: "ALI", universityId: "ksu",
+        email: "ali@ksu.edu.sa", verifiedEmail: "ali@ksu.edu.sa", emailProof: "",
+        studentId: "441234567", discord: "ali", phone: "0501234567",
+        role: "STARTER", requirements: {},
+      }],
+    },
+    normaliseConfig({ ...DEFAULT_TOURNAMENT }),
+  );
+  check("the roster refuses an address from the parent domain",
+    wrongDomain.errors["member.0.email"],
+    "ali@ksu.edu.sa is not a King Saud University address (expected student.ksu.edu.sa)");
+  check("…and it is an error, not a warning",
+    wrongDomain.warnings.some((w) => /King Saud/.test(w)), false);
+
+  /* The server's copy of the rule: the browser can be bypassed, so the API re-checks. */
+  const payload = {
+    tournamentName: DEFAULT_TOURNAMENT.tournamentName,
+    teamName: "Team Domain Probe",
+    gender: "male",
+    gameId: "ea-fc-26",
+    gameName: "EA FC 27",
+    members: [{
+      fullName: "Ali Hassan", gameTag: "ALI", universityId: "ksu",
+      universityName: "King Saud University", universityRegion: "Riyadh",
+      email: "ali@ksu.edu.sa", studentId: "441234567", discord: "ali_probe",
+      phone: "0501234567", role: "STARTER", emailProof: "x", requirements: [],
+    }],
+    leaderIndex: 0,
+    consentGiven: true,
+    rulesAccepted: true,
+  };
+  const serverCheck = validatePayload(payload, normaliseConfig({ ...DEFAULT_TOURNAMENT }), {
+    verifyEmail: () => true,
+  });
+  check("the API refuses the same address",
+    serverCheck.ok ? null : serverCheck.errors["member.0.email"],
+    "ali@ksu.edu.sa is not a King Saud University address (expected student.ksu.edu.sa)");
+}
+
+console.log("\n── Team leadership ──");{
   /*
    * A 1v1 title fields one player, so leadership is not a question.
    *
