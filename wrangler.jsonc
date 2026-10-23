@@ -12,13 +12,6 @@
   "observability": {
     "enabled": true
   },
-
-  "hyperdrive": [
-    {
-      "binding": "database_binding",
-      "id": "a64c82db38e34ec4b89af519664a3e20"
-    }
-  ],
   "images": {
     "binding": "IMAGES"
   },
