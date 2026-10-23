@@ -12,43 +12,17 @@
   "observability": {
     "enabled": true
   },
- "secrets_store_secrets": [
-    {
-      "binding": "DATABASE_URL",
-      "store_id": "9706271bba9b4abf9d759dc625154617",
-      "secret_name": "DATABASE_URL"
-    },
-    {
-      "binding": "OTP_SECRET",
-      "store_id": "9706271bba9b4abf9d759dc625154617",
-      "secret_name": "OTP_SECRET"
-    },
-    {
-      "binding": "SMTP_OTP_FROM",
-      "store_id": "9706271bba9b4abf9d759dc625154617",
-      "secret_name": "SMTP_OTP_FROM"
-    },
-    {
-      "binding": "SMTP_OTP_HOST",
-      "store_id": "9706271bba9b4abf9d759dc625154617",
-      "secret_name": "SMTP_OTP_HOST"
-    },
-    {
-      "binding": "SMTP_OTP_PASS",
-      "store_id": "9706271bba9b4abf9d759dc625154617",
-      "secret_name": "SMTP_OTP_PASS"
-    },
-    {
-      "binding": "SMTP_OTP_PORT",
-      "store_id": "9706271bba9b4abf9d759dc625154617",
-      "secret_name": "SMTP_OTP_PORT"
-    },
-    {
-      "binding": "SMTP_OTP_USER",
-      "store_id": "9706271bba9b4abf9d759dc625154617",
-      "secret_name": "SMTP_OTP_USER"
-    }
-  ],
+ "secrets": {
+    "required": [
+      "DATABASE_URL",
+      "OTP_SECRET",
+      "SMTP_OTP_FROM",
+      "SMTP_OTP_HOST",
+      "SMTP_OTP_PASS",
+      "SMTP_OTP_PORT",
+      "SMTP_OTP_USER"
+    ]
+  },
   "images": {
     "binding": "IMAGES"
   },
