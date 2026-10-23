@@ -32,14 +32,14 @@ export const dynamic = "force-dynamic";
  * a spam relay.
  */
 export async function POST(request: Request) {
-  if (!adminSecret()) {
+  if (!(await adminSecret())) {
     return NextResponse.json(
       { error: "Admin access is not configured on this deployment." },
       { status: 503 },
     );
   }
 
-  const limited = rateLimit(clientKey(request, "staff-request"), 10, 10 * 60_000);
+  const limited = rateLimit(await clientKey(request, "staff-request"), 10, 10 * 60_000);
   if (!limited.ok) {
     return NextResponse.json(
       { error: "Too many requests. Please wait a moment and try again." },
@@ -74,11 +74,11 @@ export async function POST(request: Request) {
      runs first, because that check *is* the feature; a test aid that stepped over it
      would test nothing. Placed before the mailer guard so skip mode works on a
      deployment with no sending account at all, which is where a fresh clone starts. */
-  if (otpSkipVerify()) {
+  if (await otpSkipVerify()) {
     return NextResponse.json({ ok: true, email, skipVerify: true });
   }
 
-  if (!mailerConfigured("otp") && !mailerAllowsLogFallback("otp")) {
+  if (!(await (await mailerConfigured("otp"))) && !(await mailerAllowsLogFallback("otp"))) {
     return NextResponse.json(
       { error: "The email service is not configured on this deployment." },
       { status: 503 },
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     const record = await createOtp({
       email,
       purpose: "staff-access",
-      codeHash: hashCode(code, email, "staff-access"),
+      codeHash: await hashCode(code, email, "staff-access"),
       expiresAt: otpExpiry(),
     });
 

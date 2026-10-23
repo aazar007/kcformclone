@@ -25,6 +25,8 @@
  * admin should not have to pick their way past a form meant for someone else.
  */
 
+import { getEnv } from "./env";
+
 /** Which way in an address belongs to. */
 export type ConsoleRole = "owner" | "staff";
 
@@ -78,8 +80,8 @@ const SEGMENT = /^[a-z0-9][a-z0-9-]{3,61}[a-z0-9]$/;
  * production would be worse than none: it would look like protection while the
  * console sat at a path anybody could compute.
  */
-export function adminPathSecret(): string | null {
-  const configured = process.env.ADMIN_SECRET?.trim();
+export async function adminPathSecret(): Promise<string | null> {
+  const configured = (await getEnv("ADMIN_SECRET"))?.trim();
   if (configured) return configured;
   if (process.env.NODE_ENV !== "production") return DEV_ADMIN_SECRET;
   return null;
@@ -94,9 +96,9 @@ async function sha256Hex(value: string): Promise<string> {
 const overrideWarned = new Set<string>();
 
 /** The override for a role, normalised and validated — null when unset or unusable. */
-function explicitPath(role: ConsoleRole): string | null {
+async function explicitPath(role: ConsoleRole): Promise<string | null> {
   const variable = OVERRIDE[role];
-  const raw = process.env[variable]?.trim().replace(/^\/+|\/+$/g, "").toLowerCase();
+  const raw = (await getEnv(variable))?.trim().replace(/^\/+|\/+$/g, "").toLowerCase();
   if (!raw) return null;
 
   if (!SEGMENT.test(raw)) {
@@ -143,10 +145,10 @@ export const CONSOLE_HEADER = "x-ksu-console";
  * link to", not as "use a default". A default here would be a public URL.
  */
 export async function consolePath(role: ConsoleRole): Promise<string | null> {
-  const explicit = explicitPath(role);
+  const explicit = await explicitPath(role);
   if (explicit) return explicit;
 
-  const secret = adminPathSecret();
+  const secret = await adminPathSecret();
   if (!secret) return null;
 
   const key = `${role}:${secret}`;

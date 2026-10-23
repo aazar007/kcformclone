@@ -21,7 +21,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  if (!adminSecret()) {
+  if (!(await adminSecret())) {
     return NextResponse.json({ error: NOT_CONFIGURED_MESSAGE }, { status: 503 });
   }
   if (!(await isAdminRequest(request))) {

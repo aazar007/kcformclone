@@ -1,3 +1,5 @@
+import { getEnv } from "./env";
+
 /**
  * The public address of this deployment.
  *
@@ -15,8 +17,9 @@
  * 4. localhost, as a last resort so a missing variable degrades instead of
  *    throwing in the middle of a registration.
  */
-export function appBaseUrl(request?: Request): string {
-  const configured = process.env.APP_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
+export async function appBaseUrl(request?: Request): Promise<string> {
+  const configured =
+    (await getEnv("APP_URL"))?.trim() || (await getEnv("NEXT_PUBLIC_APP_URL"))?.trim();
   if (configured) return stripTrailingSlash(configured);
 
   if (request) {
@@ -27,10 +30,10 @@ export function appBaseUrl(request?: Request): string {
     }
   }
 
-  const vercel = process.env.VERCEL_URL?.trim();
+  const vercel = (await getEnv("VERCEL_URL"))?.trim();
   if (vercel) return `https://${vercel.replace(/^https?:\/\//, "")}`;
 
-  return `http://localhost:${process.env.PORT?.trim() || "3001"}`;
+  return `http://localhost:${(await getEnv("PORT"))?.trim() || "3001"}`;
 }
 
 function stripTrailingSlash(url: string) {

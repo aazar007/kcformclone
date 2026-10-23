@@ -14,20 +14,20 @@ export const dynamic = "force-dynamic";
  * failed login.
  */
 export async function GET(request: Request) {
-  const session = adminSession(request);
+  const session = await adminSession(request);
   if (!session) {
     return NextResponse.json({ ok: false }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
   return NextResponse.json(
     {
       ok: true,
-      devSecret: usingDevSecret(),
+      devSecret: await usingDevSecret(),
       role: session.role,
       email: session.email,
       /* Whether the emailed confirmation step is in force, so a console restored from an
          existing session warns about it just as a fresh sign-in does. */
-      twoStep: adminTwoStep(),
-      twoStepAddress: adminEmail(),
+      twoStep: await adminTwoStep(),
+      twoStepAddress: await adminEmail(),
     },
     { headers: { "Cache-Control": "no-store" } },
   );

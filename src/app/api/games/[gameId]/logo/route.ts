@@ -17,7 +17,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ gameId: string }> },
 ) {
-  if (!databaseConfigured()) {
+  if (!(await databaseConfigured())) {
     return new NextResponse(null, { status: 404 });
   }
 

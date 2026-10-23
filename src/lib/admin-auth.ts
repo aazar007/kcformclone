@@ -18,6 +18,7 @@ import {
   getAdminCredential,
   recentAdminFailures,
 } from "@/lib/store";
+import { getEnv } from "@/lib/env";
 
 /**
  * The optional pepper for the stored grand admin password.
@@ -37,8 +38,8 @@ import {
  * rather than silently refused, because "wrong password" is the one message it must not be
  * mistaken for.
  */
-export function adminPepper(): Buffer {
-  const configured = process.env.ADMIN_PEPPER?.trim();
+export async function adminPepper(): Promise<Buffer> {
+  const configured = (await getEnv("ADMIN_PEPPER"))?.trim();
   if (!configured) return Buffer.alloc(0);
   /* Hashed rather than used raw, so the value in the environment is not itself the key
      material, and so a short passphrase-style pepper still yields a full-length key. */
@@ -64,7 +65,7 @@ export async function verifyAdminCredentials(candidate: string): Promise<boolean
   const stored = await getAdminCredential().catch(() => null);
 
   if (stored && isCredentialHash(stored.passwordHash)) {
-    if (await verifyCredential(stored.passwordHash, candidate, adminPepper())) return true;
+    if (await verifyCredential(stored.passwordHash, candidate, await adminPepper())) return true;
   } else if (stored) {
     /* A row that is not in our format — hand-edited, or written by an older build. Reported
        rather than ignored, because silently falling through to the environment secret would
@@ -86,16 +87,16 @@ export async function verifyAdminCredentials(candidate: string): Promise<boolean
 export const DEV_ADMIN_SECRET = "crown-admin";
 
 /** The expected admin secret, or null when admin access is not configured. */
-export function adminSecret(): string | null {
-  const configured = process.env.ADMIN_SECRET?.trim();
+export async function adminSecret(): Promise<string | null> {
+  const configured = (await getEnv("ADMIN_SECRET"))?.trim();
   if (configured) return configured;
   if (process.env.NODE_ENV !== "production") return DEV_ADMIN_SECRET;
   return null;
 }
 
 /** True when the built-in development secret is what would be accepted. */
-export function usingDevSecret(): boolean {
-  return !process.env.ADMIN_SECRET?.trim() && process.env.NODE_ENV !== "production";
+export async function usingDevSecret(): Promise<boolean> {
+  return !(await getEnv("ADMIN_SECRET"))?.trim() && process.env.NODE_ENV !== "production";
 }
 
 /**
@@ -119,8 +120,8 @@ export function usingDevSecret(): boolean {
  * Addresses are not validated beyond that: they are the operator's, typed into their own
  * deployment's environment, and the send either works or the error says so.
  */
-export function adminEmails(): string[] {
-  const raw = process.env.ADMIN_EMAIL ?? "";
+export async function adminEmails(): Promise<string[]> {
+  const raw = (await getEnv("ADMIN_EMAIL")) ?? "";
   const addresses: string[] = [];
 
   for (const entry of raw.split(/[\s,;]+/)) {
@@ -142,14 +143,14 @@ export function adminEmails(): string[] {
  * anchor no matter how many inboxes receive a copy. `null` means none is configured,
  * which is what turns the second step off.
  */
-export function adminEmail(): string | null {
-  return adminEmails()[0] ?? null;
+export async function adminEmail(): Promise<string | null> {
+  return (await adminEmails())[0] ?? null;
 }
 
 /** Whether an address belongs to a grand admin — used to keep staff grants from shadowing one. */
-export function isAdminEmail(email: string | null | undefined): boolean {
+export async function isAdminEmail(email: string | null | undefined): Promise<boolean> {
   const address = (email ?? "").trim().toLowerCase();
-  return address.length > 0 && adminEmails().includes(address);
+  return address.length > 0 && (await adminEmails()).includes(address);
 }
 
 /**
@@ -173,8 +174,8 @@ export function isAdminEmail(email: string | null | undefined): boolean {
  * console carries a permanent warning that the step is off and how to turn it on. The same
  * shape as `usingDevSecret()`: warn, never break.
  */
-export function adminTwoStep(): boolean {
-  return Boolean(adminEmail());
+export async function adminTwoStep(): Promise<boolean> {
+  return Boolean(await adminEmail());
 }
 
 /* ------------------------------------------------------------------ */
@@ -279,8 +280,8 @@ function parseStoredSecret(value: string): StoredSecret {
 }
 
 /** Whether `ADMIN_SECRET` holds a hash rather than the secret itself. */
-export function adminSecretIsHashed(): boolean {
-  const value = adminSecret();
+export async function adminSecretIsHashed(): Promise<boolean> {
+  const value = await adminSecret();
   if (!value) return false;
   return parseStoredSecret(value).kind !== "plaintext";
 }
@@ -329,7 +330,7 @@ export async function checkAdminSecret(candidate: string | null | undefined): Pr
  * Not exported: callers should use `checkAdminSecret`, which knows about both.
  */
 async function checkEnvAdminSecret(candidate: string | null | undefined): Promise<boolean> {
-  const expected = adminSecret();
+  const expected = await adminSecret();
   if (!expected || typeof candidate !== "string" || !candidate.trim()) return false;
 
   const submitted = candidate.trim();
@@ -427,8 +428,8 @@ export interface AdminSession {
   email: string | null;
 }
 
-function mintSession(payload: Record<string, unknown>): string | null {
-  const secret = adminSecret();
+async function mintSession(payload: Record<string, unknown>): Promise<string | null> {
+  const secret = await adminSecret();
   if (!secret) return null;
   const encoded = b64url(
     JSON.stringify({ ...payload, x: Date.now() + SESSION_TTL_SECONDS * 1000 }),
@@ -437,7 +438,7 @@ function mintSession(payload: Record<string, unknown>): string | null {
 }
 
 /** A fresh session token for the grand admin, or null when not configured. */
-export function createAdminSession(): string | null {
+export async function createAdminSession(): Promise<string | null> {
   return mintSession({ r: "owner" });
 }
 
@@ -448,7 +449,7 @@ export function createAdminSession(): string | null {
  * re-labelled as somebody else's, and the audit line can name who did what
  * instead of reporting one anonymous "admin".
  */
-export function createStaffSession(email: string): string | null {
+export async function createStaffSession(email: string): Promise<string | null> {
   return mintSession({ r: "staff", s: email.trim().toLowerCase() });
 }
 
@@ -481,8 +482,8 @@ function cookieValue(request: Request, name: string): string | null {
  * like before roles existed, and deriving the role rather than rejecting the
  * cookie means deploying this does not sign the organiser out mid-tournament.
  */
-export function adminSession(request: Request): AdminSession | null {
-  const secret = adminSecret();
+export async function adminSession(request: Request): Promise<AdminSession | null> {
+  const secret = await adminSecret();
   const token = cookieValue(request, SESSION_COOKIE);
   if (!secret || !token) return null;
 
@@ -514,8 +515,8 @@ export function adminSession(request: Request): AdminSession | null {
 }
 
 /** True when the request carries a genuine, unexpired session of either role. */
-export function hasAdminSession(request: Request): boolean {
-  return adminSession(request) !== null;
+export async function hasAdminSession(request: Request): Promise<boolean> {
+  return (await adminSession(request)) !== null;
 }
 
 /**
@@ -571,11 +572,11 @@ const callerKey = (request: Request) => clientKey(request, "admin-fail");
  * different one). If the database is unreachable the memory check still applies.
  */
 export async function adminLockout(request: Request): Promise<number> {
-  const key = callerKey(request);
+  const key = await callerKey(request);
   const local = lockoutSeconds(key, ADMIN_MAX_FAILURES, ADMIN_LOCKOUT_WINDOW_MS);
   if (local > 0) return local;
 
-  if (!databaseConfigured()) return 0;
+  if (!(await databaseConfigured())) return 0;
   try {
     const since = new Date(Date.now() - ADMIN_LOCKOUT_WINDOW_MS);
     if ((await countAllAdminFailures(since)) >= ADMIN_GLOBAL_MAX_FAILURES) {
@@ -621,7 +622,7 @@ export async function adminLogin(
   const wait = await adminLockout(request);
   if (wait > 0) return { ok: false, retryAfterSeconds: wait };
 
-  const key = callerKey(request);
+  const key = await callerKey(request);
   if (await checkAdminSecret(candidate)) {
     clearFailures(key);
     if (await databaseConfigured()) await clearAdminFailures(key).catch(() => {});
@@ -644,7 +645,7 @@ export async function adminLogin(
  *
  * The secret is never logged.
  */
-function auditAdmin(
+async function auditAdmin(
   request: Request,
   via: "session" | "header",
   actor: AdminSession,
@@ -657,7 +658,7 @@ function auditAdmin(
         at: new Date().toISOString(),
         method: request.method,
         path: new URL(request.url).pathname,
-        ip: callerKey(request).replace(/^admin-fail:/, ""),
+        ip: (await callerKey(request)).replace(/^admin-fail:/, ""),
         role: actor.role,
         ...(actor.email ? { staff: actor.email } : {}),
         via,
@@ -677,15 +678,15 @@ function auditAdmin(
  */
 export async function isAdminRequest(request: Request): Promise<boolean> {
   // The console's own session: no secret travels, no failure is counted.
-  const session = adminSession(request);
+  const session = await adminSession(request);
   if (session) {
     if (!isSameOrigin(request)) return false;
-    auditAdmin(request, "session", session);
+    await auditAdmin(request, "session", session);
     return true;
   }
   // Scripts and tools may still present the secret in a header.
   if (await checkAdminSecretGuarded(request, presentedSecret(request))) {
-    auditAdmin(request, "header", { role: "owner", email: null });
+    await auditAdmin(request, "header", { role: "owner", email: null });
     return true;
   }
   return false;
@@ -705,16 +706,16 @@ export async function isAdminRequest(request: Request): Promise<boolean> {
  * an endpoint their own console never shows would be punishing a mistake.
  */
 export async function isOwnerRequest(request: Request): Promise<boolean> {
-  const session = adminSession(request);
+  const session = await adminSession(request);
   if (session) {
     if (!isSameOrigin(request)) return false;
     const allowed = session.role === "owner";
-    auditAdmin(request, "session", session, allowed ? "allowed" : "refused");
+    await auditAdmin(request, "session", session, allowed ? "allowed" : "refused");
     return allowed;
   }
   // A presented secret is the grand admin by definition — it is their credential.
   if (await checkAdminSecretGuarded(request, presentedSecret(request))) {
-    auditAdmin(request, "header", { role: "owner", email: null });
+    await auditAdmin(request, "header", { role: "owner", email: null });
     return true;
   }
   return false;

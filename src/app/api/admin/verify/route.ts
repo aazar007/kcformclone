@@ -49,17 +49,17 @@ interface VerifyResponse {
 }
 
 /** Sign in, through the one place a session cookie is ever set on this route. */
-function sessionResponse() {
+async function sessionResponse() {
   const response = NextResponse.json(
     {
       ok: true,
       stage: "session",
-      devSecret: usingDevSecret(),
-      twoStep: adminTwoStep(),
+      devSecret: await usingDevSecret(),
+      twoStep: await adminTwoStep(),
     } as VerifyResponse,
     { headers: { "Cache-Control": "no-store" } },
   );
-  const token = createAdminSession();
+  const token = await createAdminSession();
   if (token) response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
   return response;
 }
@@ -84,11 +84,11 @@ function sessionResponse() {
  * `otpSkipVerify` returns false in production and logs an error if the variable is set.
  */
 export async function POST(request: Request) {
-  if (!adminSecret()) {
+  if (!(await adminSecret())) {
     return NextResponse.json({ error: NOT_CONFIGURED_MESSAGE }, { status: 503 });
   }
 
-  const limited = rateLimit(clientKey(request, "admin-verify"), 30, 10 * 60_000);
+  const limited = rateLimit(await clientKey(request, "admin-verify"), 30, 10 * 60_000);
   if (!limited.ok) {
     return NextResponse.json(
       { error: "Too many attempts. Please wait a moment and try again." },
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
 
   /* Read once, and everything follows from it: with no address there is nowhere to send a
      code, so there is no second step. */
-  const emails = adminEmails();
+  const emails = await adminEmails();
   const email = emails[0] ?? null;
   if (!email) {
     /* The sign-in **proceeds**. Refusing here would lock the organiser out of their own
@@ -131,16 +131,16 @@ export async function POST(request: Request) {
       "[admin] ADMIN_EMAIL is not set, so the grand admin's sign-in has NO emailed " +
         "confirmation step. Set ADMIN_EMAIL to turn it on.",
     );
-    return sessionResponse();
+    return await sessionResponse();
   }
 
   /* Local testing: the code step is skipped, as it is everywhere else. The secret above
      is still required, and `otpSkipVerify` is a no-op in production. */
-  if (otpSkipVerify()) {
-    return sessionResponse();
+  if (await otpSkipVerify()) {
+    return await sessionResponse();
   }
 
-  if (!mailerConfigured("otp") && !mailerAllowsLogFallback("otp")) {
+  if (!(await (await mailerConfigured("otp"))) && !(await mailerAllowsLogFallback("otp"))) {
     return NextResponse.json(
       {
         error:
@@ -166,7 +166,7 @@ export async function POST(request: Request) {
     const record = await createOtp({
       email,
       purpose: "admin-access",
-      codeHash: hashCode(code, email, "admin-access"),
+      codeHash: await hashCode(code, email, "admin-access"),
       expiresAt: otpExpiry(),
     });
 
