@@ -12,6 +12,9 @@
  */
 
 import nodemailer, { type Transporter } from "nodemailer";
+import type Mail from "nodemailer/lib/mailer";
+import MailComposer from "nodemailer/lib/mail-composer";
+import { sendViaWorkersSmtp } from "./smtp-workers";
 import { getEnv } from "./env";
 import { emailCopy, emailDirection, fill, type EmailCopy } from "./email-copy";
 import { DEFAULT_LANGUAGE, arabicDigits, type Language } from "./i18n";
@@ -339,21 +342,27 @@ export async function sendMail(mail: OutgoingMail): Promise<SendOutcome> {
     return { delivered: false, logged: true };
   }
 
+  const message = {
+    from: fromAddress(settings),
+    to: mail.to,
+    replyTo: defaultReplyTo(settings, mail.replyTo),
+    subject: mail.subject,
+    text: mail.text,
+    html: mail.html,
+    attachments: mail.inline?.map((image) => ({
+      filename: image.filename,
+      content: image.content,
+      contentType: image.contentType,
+      cid: image.cid,
+    })),
+  };
+
   try {
-    await transport(settings).sendMail({
-      from: fromAddress(settings),
-      to: mail.to,
-      replyTo: defaultReplyTo(settings, mail.replyTo),
-      subject: mail.subject,
-      text: mail.text,
-      html: mail.html,
-      attachments: mail.inline?.map((image) => ({
-        filename: image.filename,
-        content: image.content,
-        contentType: image.contentType,
-        cid: image.cid,
-      })),
-    });
+    if (onCloudflareWorkers()) {
+      await sendOnWorkers(settings, message);
+    } else {
+      await transport(settings).sendMail(message);
+    }
   } catch (error) {
     /* Logged with the relay's exact reply, so an operator can search for it.
        "550 Unusual sending activity" is a provider throttle and reads nothing
@@ -372,6 +381,39 @@ export async function sendMail(mail: OutgoingMail): Promise<SendOutcome> {
   }
 
   return { delivered: true, logged: false };
+}
+
+/** True inside a Cloudflare Worker request (OpenNext publishes the context there). */
+function onCloudflareWorkers(): boolean {
+  return Boolean((globalThis as Record<symbol, unknown>)[Symbol.for("__cloudflare-context__")]);
+}
+
+/**
+ * Send on Cloudflare Workers.
+ *
+ * nodemailer's network transport cannot run there (see smtp-workers.ts), so the
+ * message is built by nodemailer's composer — the same encoder the transport
+ * uses — and handed to the relay over `cloudflare:sockets`.
+ */
+async function sendOnWorkers(settings: ChannelSettings, message: Mail.Options): Promise<void> {
+  const compiled = new MailComposer(message).compile();
+  const envelope = compiled.getEnvelope();
+  const raw: Buffer = await new Promise((resolve, reject) =>
+    compiled.build((error, built) => (error ? reject(error) : resolve(built))),
+  );
+
+  await sendViaWorkersSmtp({
+    host: settings.host,
+    port: settings.port,
+    secure: settings.secure,
+    requireTLS: !settings.secure && process.env.NODE_ENV === "production",
+    user: settings.user,
+    pass: settings.pass,
+    from: envelope.from || settings.user,
+    to: envelope.to,
+    message: raw,
+    stepTimeoutMs: SOCKET_TIMEOUT_MS,
+  });
 }
 
 /**
