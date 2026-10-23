@@ -29,14 +29,14 @@ export const dynamic = "force-dynamic";
  * this point, so the code is the only credential in play.
  */
 export async function POST(request: Request) {
-  if (!adminSecret()) {
+  if (!(await adminSecret())) {
     return NextResponse.json(
       { error: "Admin access is not configured on this deployment." },
       { status: 503 },
     );
   }
 
-  const limited = rateLimit(clientKey(request, "admin-verify-otp"), 30, 10 * 60_000);
+  const limited = rateLimit(await clientKey(request, "admin-verify-otp"), 30, 10 * 60_000);
   if (!limited.ok) {
     return NextResponse.json(
       { error: "Too many attempts. Please wait a moment and try again." },
@@ -53,9 +53,9 @@ export async function POST(request: Request) {
 
   /* Local testing, dev only. `otpSkipVerify` is a no-op in production and the caller has
      already passed the secret check by this point in that flow. */
-  if (otpSkipVerify()) return sessionResponse();
+  if (await otpSkipVerify()) return await sessionResponse();
 
-  if (!adminTwoStep()) {
+  if (!(await adminTwoStep())) {
     /* No second factor is configured, so there is no code to check — which means there is
        nothing this endpoint can legitimately do. Refusing is the only safe answer: it is
        reachable without the secret, so completing a sign-in here would be a way in that
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const email = adminEmail();
+  const email = await adminEmail();
   if (!email) {
     return NextResponse.json(
       { error: "Two-step sign-in is not configured. Set ADMIN_EMAIL and restart the app." },
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!safeEqual(hashCode(code, email, "admin-access"), record.codeHash)) {
+    if (!safeEqual(await hashCode(code, email, "admin-access"), record.codeHash)) {
       const remaining = Math.max(0, OTP_MAX_ATTEMPTS - (record.attempts + 1));
       return NextResponse.json(
         {
@@ -121,7 +121,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return sessionResponse();
+    return await sessionResponse();
   } catch (error) {
     console.error("[admin:verify:otp]", error);
     return NextResponse.json({ error: "We could not verify that code. Try again." }, { status: 502 });
@@ -129,12 +129,12 @@ export async function POST(request: Request) {
 }
 
 /** The only place a grand admin session cookie is set. */
-function sessionResponse() {
+async function sessionResponse() {
   const response = NextResponse.json(
-    { ok: true, stage: "session" as const, devSecret: usingDevSecret() },
+    { ok: true, stage: "session" as const, devSecret: await usingDevSecret() },
     { headers: { "Cache-Control": "no-store" } },
   );
-  const token = createAdminSession();
+  const token = await createAdminSession();
   if (token) response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
   return response;
 }

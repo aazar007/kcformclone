@@ -35,21 +35,21 @@ export async function POST(request: Request) {
 
   /* Local testing: accept the address with no code. `otpSkipVerify` is a no-op in
      production, so the proof minted here can never stand in for a real one. */
-  if (otpSkipVerify()) {
+  if (await otpSkipVerify()) {
     if (!email) {
       return NextResponse.json({ error: "Enter your email address" }, { status: 400 });
     }
     return NextResponse.json({ ok: true, email, proof: makeSkipProof(email, "player-email") });
   }
 
-  if (!otpConfigured()) {
+  if (!(await otpConfigured())) {
     return NextResponse.json(
       { error: "Email verification is not configured on this deployment." },
       { status: 503 },
     );
   }
 
-  const limited = rateLimit(clientKey(request, "otp-verify"), 30, 10 * 60_000);
+  const limited = rateLimit(await clientKey(request, "otp-verify"), 30, 10 * 60_000);
   if (!limited.ok) {
     return NextResponse.json(
       { error: "Too many attempts. Please wait a moment and try again." },
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!safeEqual(hashCode(code, email, "player-email"), record.codeHash)) {
+    if (!safeEqual(await hashCode(code, email, "player-email"), record.codeHash)) {
       const remaining = Math.max(0, OTP_MAX_ATTEMPTS - (record.attempts + 1));
       return NextResponse.json(
         {
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "That code has already been used. Ask for a new code." }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true, email, proof: makeProof(email, "player-email") });
+    return NextResponse.json({ ok: true, email, proof: await makeProof(email, "player-email") });
   } catch (error) {
     console.error("[otp:verify]", error);
     return NextResponse.json({ error: "We could not verify that code. Try again." }, { status: 502 });

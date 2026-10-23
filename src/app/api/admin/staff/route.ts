@@ -39,7 +39,7 @@ function normaliseEmail(value: unknown): string {
 }
 
 export async function GET(request: Request) {
-  if (!adminSecret()) {
+  if (!(await adminSecret())) {
     return NextResponse.json({ error: NOT_CONFIGURED_MESSAGE }, { status: 503 });
   }
   if (!(await isOwnerRequest(request))) {
@@ -64,7 +64,7 @@ export async function GET(request: Request) {
 
 /** Grant access to an address, or bring a revoked grant back. */
 export async function POST(request: Request) {
-  if (!adminSecret()) {
+  if (!(await adminSecret())) {
     return NextResponse.json({ error: NOT_CONFIGURED_MESSAGE }, { status: 503 });
   }
   if (!(await isOwnerRequest(request))) {
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
   }
   /* A grant to the grand admin is meaningless — they hold the secret, not a row —
      and would let one address appear in the staff list as if it were a guest. */
-  if (isAdminEmail(email)) {
+  if (await isAdminEmail(email)) {
     return NextResponse.json(
       { error: "That address is the grand admin; it does not need a grant." },
       { status: 400 },
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
  * later does not silently inherit the old `addedAt`.
  */
 export async function DELETE(request: Request) {
-  if (!adminSecret()) {
+  if (!(await adminSecret())) {
     return NextResponse.json({ error: NOT_CONFIGURED_MESSAGE }, { status: 503 });
   }
   if (!(await isOwnerRequest(request))) {

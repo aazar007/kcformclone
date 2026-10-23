@@ -50,7 +50,7 @@ export default async function StaffSignInPage() {
         configSource={source}
         initialLogoVersions={logoVersions}
         mode="staff"
-        sheetUrl={sheetUrl()}
+        sheetUrl={await sheetUrl()}
       />
     </div>
   );

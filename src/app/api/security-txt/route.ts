@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getEnv } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
  * may have been abandoned. Regenerate by bumping the date, or let it roll a year at a time.
  */
 export async function GET() {
-  const contact = process.env.SECURITY_CONTACT?.trim();
+  const contact = (await getEnv("SECURITY_CONTACT"))?.trim();
   if (!contact) {
     return new NextResponse("Not found", { status: 404 });
   }
@@ -34,7 +35,7 @@ export async function GET() {
     return new NextResponse("Not found", { status: 404 });
   }
 
-  const configuredExpiry = process.env.SECURITY_EXPIRES?.trim();
+  const configuredExpiry = (await getEnv("SECURITY_EXPIRES"))?.trim();
   const expires =
     configuredExpiry ??
     /* One year out, always in the future: an `Expires` in the past tells parsers to ignore
