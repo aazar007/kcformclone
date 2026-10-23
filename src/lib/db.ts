@@ -3,7 +3,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 /**
  * The Prisma client for the registration database.
- *
+ * hello
  * Prisma 7 has no connection URL in the schema — the driver adapter owns it — so
  * the client is built here, lazily, and reused across hot reloads in
  * development. Every caller goes through `getPrisma()`.
