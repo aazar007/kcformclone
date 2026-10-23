@@ -21,3 +21,11 @@ next-env.d.ts
 generated/
 .prisma-composer/
 .alchemy/
+
+# Local Cloudflare secrets
+.dev.vars
+.dev.vars.*
+
+# OpenNext / Cloudflare build output
+.open-next/
+.wrangler/
