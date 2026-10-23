@@ -1,3 +1,4 @@
+import { getEnv } from "./env";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
@@ -12,10 +13,10 @@ const globalForPrisma = globalThis as unknown as { ksuPrisma?: PrismaClient };
 
 let cached: PrismaClient | null = null;
 
-export function getPrisma(): PrismaClient {
+export async function getPrisma(): Promise<PrismaClient> {
   if (cached) return cached;
 
-  const connectionString = process.env.DATABASE_URL?.trim();
+  const connectionString = (await getEnv("DATABASE_URL"))?.trim();
   if (!connectionString) throw new DatabaseNotConfiguredError();
 
   cached =
@@ -38,6 +39,6 @@ export function getPrisma(): PrismaClient {
   return cached;
 }
 
-export function databaseConfigured() {
-  return Boolean(process.env.DATABASE_URL?.trim());
+export async function databaseConfigured(): Promise<boolean> {
+  return Boolean((await getEnv("DATABASE_URL"))?.trim());
 }
