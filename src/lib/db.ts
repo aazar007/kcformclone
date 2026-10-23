@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";  // ← add this import
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
@@ -16,7 +16,7 @@ let cached: PrismaClient | null = null;
 export function getPrisma(): PrismaClient {
   if (cached) return cached;
 
-  // Use the Hyperdrive binding instead of process.env.DATABASE_URL
+  const { env } = getCloudflareContext();
   const connectionString = env.database_binding?.connectionString;
   if (!connectionString) throw new DatabaseNotConfiguredError();
 
@@ -41,5 +41,6 @@ export function getPrisma(): PrismaClient {
 }
 
 export function databaseConfigured() {
+  const { env } = getCloudflareContext();
   return Boolean(env.database_binding?.connectionString);
 }
