@@ -15,8 +15,6 @@ binding = "ASSETS"
 
 [observability]
 enabled = true
-[vars]
-SMTP_OTP_HOST = "smtp.gmail.com"
 # Database: the app connects with the DATABASE_URL Worker secret
 # (Settings → Variables and Secrets). Prisma Postgres already pools connections.
 # To use Hyperdrive instead, add a [[hyperdrive]] block with binding = "HYPERDRIVE"
