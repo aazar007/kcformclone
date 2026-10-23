@@ -12,37 +12,20 @@
   "observability": {
     "enabled": true
   },
- "secrets": {
-    "required": [
-      "DATABASE_URL",
-      "OTP_SECRET",
-      "SMTP_OTP_FROM",
-      "SMTP_OTP_HOST",
-      "SMTP_OTP_PASS",
-      "SMTP_OTP_PORT",
-      "SMTP_OTP_USER"
-    ]
-  },
- "hyperdrive": [
+  "hyperdrive": [
     {
-      "binding": "DATABASE_URL",
+      "binding": "HYPERDRIVE",
       "id": "1ae455bb1fdb475693dc2b5fbe8625d1"
     }
   ],
   "images": {
     "binding": "IMAGES"
   },
-  "unsafe": {
-    "bindings": [
-      {
-        "name": "WORKER_SELF_REFERENCE",
-        "type": "service",
-        "service": "ksucrownform",
-        "environment": "production"
-      }
-    ]
-  },
-
-
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "ksucrownform",
+      "environment": "production"
+    }
+  ]
 }
-// hi
