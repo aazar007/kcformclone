@@ -133,11 +133,7 @@ const nextConfig = {
       { source: "/.well-known/security.txt", destination: "/api/security-txt" },
     ];
   },
-webpack: (config) => {
-  config.externals = config.externals || [];
-  config.externals.push("cloudflare:workers");
-  return config;
-},
+
 
   /**
    * Pin the tracing root to this project.
