@@ -1,7 +1,5 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { env } from "cloudflare:workers";
 
-/** Get a secret/value from the Worker's env bindings. */
 export function getEnv(key: string): string | undefined {
-  const { env } = getCloudflareContext();
-  return (env as Record<string, string | undefined>)[key];
+  return env[key];
 }
