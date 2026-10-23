@@ -8,9 +8,16 @@
 // Local development and production both point at PostgreSQL (Vercel Postgres /
 // Neon in production) — see DATABASE_URL in .env.
 
+// `prisma-client` with runtime "workerd" is required on Cloudflare Workers: it
+// loads the query engine as a precompiled WebAssembly module. The older
+// `prisma-client-js` compiles it from base64 at run time, which Workers refuse
+// ("Wasm code generation disallowed by embedder"). The client is generated into
+// generated/prisma-client (gitignored) by `postinstall` and imported by src/lib/db.ts.
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"] 
+  provider     = "prisma-client"
+  output       = "../generated/prisma-client"
+  runtime      = "workerd"
+  moduleFormat = "esm"
 }
 
 // Prisma 7 moved the connection URL out of the schema: it now lives in
