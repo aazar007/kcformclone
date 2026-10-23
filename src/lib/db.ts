@@ -16,8 +16,8 @@ let cached: PrismaClient | null = null;
 export function getPrisma(): PrismaClient {
   if (cached) return cached;
 
-  const connectionString = getEnv("DATABASE_URL");
-  if (!connectionString) throw new DatabaseNotConfiguredError();
+const connectionString = process.env.DATABASE_URL?.trim();
+
 
   cached =
     globalForPrisma.ksuPrisma ??
