@@ -41,3 +41,4 @@ export function getPrisma(): PrismaClient {
 export function databaseConfigured() {
   return Boolean(process.env.DATABASE_URL?.trim());
 }
+//Hi
