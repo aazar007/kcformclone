@@ -10,6 +10,8 @@
  * address can request — is enforced in the database (see `countRecentOtps`).
  */
 
+import { getEnv } from "./env";
+
 interface Bucket {
   hits: number[];
 }
@@ -61,8 +63,8 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateLim
  * `proxy_set_header X-Real-IP $remote_addr`, or `X-Forwarded-For` with
  * `$remote_addr`), not appended to.
  */
-function trustedHeader(): string | null {
-  const configured = process.env.TRUSTED_IP_HEADER?.trim().toLowerCase();
+async function trustedHeader(): Promise<string | null> {
+  const configured = (await getEnv("TRUSTED_IP_HEADER"))?.trim().toLowerCase();
   return configured || null;
 }
 
@@ -84,8 +86,8 @@ let warnedAboutAddressSource = false;
  * There is no fourth step that reads a header the client could have written — see
  * `callerAddress` for why `x-forwarded-for` is not consulted at all.
  */
-export function clientKey(request: Request, scope: string) {
-  return `${scope}:${callerAddress(request)}`;
+export async function clientKey(request: Request, scope: string): Promise<string> {
+  return `${scope}:${await callerAddress(request)}`;
 }
 
 /**
@@ -113,8 +115,8 @@ export function clientKey(request: Request, scope: string) {
  * precisely the hole this was supposed to close. Verified: a direct client sending three
  * different `X-Forwarded-For` values got three different buckets before this change.
  */
-export function callerAddress(request: Request): string {
-  const explicit = trustedHeader();
+export async function callerAddress(request: Request): Promise<string> {
+  const explicit = await trustedHeader();
   if (explicit) {
     /* First entry only: a proxy setting this header overwrites it, and one that appends
        puts its own address first. Beyond that, take what is given and nothing else. */
@@ -122,7 +124,7 @@ export function callerAddress(request: Request): string {
     return value || "local";
   }
 
-  if (process.env.VERCEL) {
+  if (await getEnv("VERCEL")) {
     const vercel = request.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
     if (vercel) return vercel;
     const realIp = request.headers.get("x-real-ip")?.trim();

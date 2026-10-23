@@ -43,7 +43,7 @@ async function knownGame(gameId: string) {
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ gameId: string }> }) {
-  if (!adminSecret()) {
+  if (!(await adminSecret())) {
     return NextResponse.json({ error: NOT_CONFIGURED_MESSAGE }, { status: 503 });
   }
   if (!(await isAdminRequest(request))) {
@@ -70,13 +70,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ game
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ gameId: string }> }) {
-  if (!adminSecret()) {
+  if (!(await adminSecret())) {
     return NextResponse.json({ error: NOT_CONFIGURED_MESSAGE }, { status: 503 });
   }
   if (!(await isAdminRequest(request))) {
     return NextResponse.json({ error: UNAUTHORISED_MESSAGE }, { status: 401 });
   }
-  if (!databaseConfigured()) {
+  if (!(await databaseConfigured())) {
     return NextResponse.json({ error: "The database is not configured." }, { status: 503 });
   }
 
@@ -130,7 +130,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gam
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ gameId: string }> }) {
-  if (!adminSecret()) {
+  if (!(await adminSecret())) {
     return NextResponse.json({ error: NOT_CONFIGURED_MESSAGE }, { status: 503 });
   }
   if (!(await isAdminRequest(request))) {

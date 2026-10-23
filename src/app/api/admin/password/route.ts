@@ -76,7 +76,7 @@ export async function POST(request: Request) {
 
   /* An empty pepper is not a misconfiguration — it is the default, meaning the hash depends
      only on the password and the database, so it verifies identically in every environment. */
-  const pepper = adminPepper();
+  const pepper = await adminPepper();
 
   try {
     await setAdminCredential(await hashCredentialAsync(password, pepper), "console");

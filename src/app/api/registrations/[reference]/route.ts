@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { loadConfig } from "@/lib/config-store";
 import { databaseConfigured } from "@/lib/db";
-import { normaliseEmail, otpConfigured, verifyProof } from "@/lib/otp";import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { normaliseEmail, otpConfigured, playerProofChecker, verifyProof } from "@/lib/otp";import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { toTeamInput } from "@/lib/team-input";
 import { leaderEmail, teamVerifiedEmails } from "@/lib/team-draft";
 import {
@@ -29,17 +29,17 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ reference: string }> },
 ) {
-  if (!databaseConfigured()) {
+  if (!(await databaseConfigured())) {
     return NextResponse.json(
       { error: "Registration is temporarily unavailable. Please try again later." },
       { status: 503 },
     );
   }
-  if (!otpConfigured()) {
+  if (!(await otpConfigured())) {
     return NextResponse.json({ error: "Editing is not configured on this deployment." }, { status: 503 });
   }
 
-  const limited = rateLimit(clientKey(request, "edit-save"), 20, 10 * 60_000);
+  const limited = rateLimit(await clientKey(request, "edit-save"), 20, 10 * 60_000);
   if (!limited.ok) {
     return NextResponse.json(
       { error: "Too many attempts. Please wait a moment and try again." },
@@ -66,7 +66,7 @@ export async function PUT(
     }
 
     const email = leaderEmail(team);
-    if (!email || !verifyProof(proof, normaliseEmail(email), "edit-access", team.id)) {
+    if (!email || !(await verifyProof(proof, normaliseEmail(email), "edit-access", team.id))) {
       return NextResponse.json(
         { error: "That editing session has expired. Reopen your registration to continue." },
         { status: 401 },
@@ -86,7 +86,7 @@ export async function PUT(
     // Addresses already on this team stay verified; anything new needs its own proof.
     const parsed = validatePayload(raw?.payload, config, {
       alreadyVerified: teamVerifiedEmails(team),
-      verifyEmail: (email, proof) => verifyProof(proof, email, "player-email"),
+      verifyEmail: await playerProofChecker(raw?.payload),
     });
     if (!parsed.ok) {
       return NextResponse.json(

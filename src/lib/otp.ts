@@ -12,6 +12,7 @@
  */
 
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
+import { getEnv } from "./env";
 
 /**
  * What a code is being used for.
@@ -51,14 +52,12 @@ export const OTP_REQUEST_WINDOW_MINUTES = 15;
  * ceiling without minting three hundred codes. A value that is not a positive integer is
  * ignored rather than trusted — a typo must not disable the brake.
  */
-function globalMax(): number {
-  const raw = process.env.OTP_GLOBAL_MAX?.trim();
+export async function otpGlobalMax(): Promise<number> {
+  const raw = (await getEnv("OTP_GLOBAL_MAX"))?.trim();
   if (!raw) return 300;
   const parsed = Number(raw);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 300;
 }
-
-export const OTP_GLOBAL_MAX_PER_WINDOW = globalMax();
 
 /** Re-exported so callers do not have to import the window separately. */
 export const OTP_GLOBAL_WINDOW_MINUTES = OTP_REQUEST_WINDOW_MINUTES;
@@ -74,8 +73,8 @@ export const OTP_GLOBAL_WINDOW_MINUTES = OTP_REQUEST_WINDOW_MINUTES;
 export const OTP_MAX_ATTEMPTS = 3;
 
 /** Signing key for both the stored hashes and the proofs handed to browsers. */
-function secret(): string {
-  const value = process.env.OTP_SECRET?.trim();
+async function secret(): Promise<string> {
+  const value = (await getEnv("OTP_SECRET"))?.trim();
   if (!value) {
     throw new OtpNotConfiguredError();
   }
@@ -93,8 +92,8 @@ export class OtpNotConfiguredError extends Error {
   }
 }
 
-export function otpConfigured() {
-  return Boolean(process.env.OTP_SECRET?.trim());
+export async function otpConfigured(): Promise<boolean> {
+  return Boolean((await getEnv("OTP_SECRET"))?.trim());
 }
 
 /** Warned once per process, so a busy dev log is not spammed. */
@@ -108,8 +107,8 @@ let skipVerifyWarned = false;
  * silently falls back to full verification and logs an error rather than waving
  * people through.
  */
-export function otpSkipVerify(): boolean {
-  const requested = process.env.OTP_SKIP_VERIFY?.trim() === "1";
+export async function otpSkipVerify(): Promise<boolean> {
+  const requested = (await getEnv("OTP_SKIP_VERIFY"))?.trim() === "1";
 
   if (requested && process.env.NODE_ENV === "production") {
     console.error(
@@ -163,8 +162,8 @@ export function generateCode(): string {
  * Hash a code for storage. Binding the address and purpose into the hash means a
  * code minted for one member cannot be replayed for another.
  */
-export function hashCode(code: string, email: string, purpose: OtpPurpose): string {
-  return createHmac("sha256", secret())
+export async function hashCode(code: string, email: string, purpose: OtpPurpose): Promise<string> {
+  return createHmac("sha256", await secret())
     .update(`${purpose}:${normaliseEmail(email)}:${code}`)
     .digest("hex");
 }
@@ -186,7 +185,7 @@ export function normaliseEmail(email: string) {
  * expiry, and an HMAC over both. It is not a session — it proves exactly one
  * thing, and only for the address it names.
  */
-export function makeProof(email: string, purpose: OtpPurpose, scope?: string): string {
+export async function makeProof(email: string, purpose: OtpPurpose, scope?: string): Promise<string> {
   const payload = {
     e: normaliseEmail(email),
     p: purpose,
@@ -195,17 +194,17 @@ export function makeProof(email: string, purpose: OtpPurpose, scope?: string): s
     ...(scope ? { s: scope } : {}),
   };
   const encoded = base64url(JSON.stringify(payload));
-  const signature = base64url(createHmac("sha256", secret()).update(encoded).digest());
+  const signature = base64url(createHmac("sha256", await secret()).update(encoded).digest());
   return `${encoded}.${signature}`;
 }
 
 /** Whether a proof is genuine, unexpired, and about this address and purpose. */
-export function verifyProof(
+export async function verifyProof(
   token: string | undefined,
   email: string,
   purpose: OtpPurpose,
   scope?: string,
-): boolean {
+): Promise<boolean> {
   if (!token) return false;
 
   const [encoded, signature] = token.split(".");
@@ -213,7 +212,7 @@ export function verifyProof(
 
   let expected: string;
   try {
-    expected = base64url(createHmac("sha256", secret()).update(encoded).digest());
+    expected = base64url(createHmac("sha256", await secret()).update(encoded).digest());
   } catch {
     return false;
   }
@@ -233,6 +232,34 @@ export function verifyProof(
   } catch {
     return false;
   }
+}
+
+/**
+ * Check every email proof in a registration payload up front.
+ *
+ * `validatePayload` is a plain synchronous function (it also runs in the browser),
+ * but verifying a proof needs the secret, which is read asynchronously. So the
+ * proofs are verified here first and the validator is handed a lookup into the
+ * result. Only a pair that actually verified is in it, so an unknown or tampered
+ * proof is refused exactly as before.
+ */
+export async function playerProofChecker(
+  payload: unknown,
+): Promise<(email: string, proof: string) => boolean> {
+  const verified = new Set<string>();
+  const members = (payload as { members?: unknown } | null | undefined)?.members;
+
+  if (Array.isArray(members)) {
+    for (const member of members as { email?: unknown; emailProof?: unknown }[]) {
+      const email = typeof member?.email === "string" ? normaliseEmail(member.email) : "";
+      const proof = member?.emailProof;
+      if (email && typeof proof === "string" && (await verifyProof(proof, email, "player-email"))) {
+        verified.add(`${email}\n${proof}`);
+      }
+    }
+  }
+
+  return (email, proof) => verified.has(`${email}\n${proof}`);
 }
 
 export function otpExpiry() {

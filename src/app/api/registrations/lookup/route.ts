@@ -6,7 +6,7 @@ import { databaseConfigured } from "@/lib/db";
 import { digitsOnly } from "@/lib/i18n";
 import { mailerAllowsLogFallback, mailerConfigured, sendOtpEmail } from "@/lib/mailer";
 import {
-  OTP_GLOBAL_MAX_PER_WINDOW,
+  otpGlobalMax,
   OTP_MAX_ATTEMPTS,
   OTP_MAX_REQUESTS_PER_WINDOW,
   OTP_REQUEST_WINDOW_MINUTES,
@@ -35,6 +35,7 @@ import {
   pruneOtps,
 } from "@/lib/store";
 import { leaderEmail, teamToDraft } from "@/lib/team-draft";
+import { getEnv } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -46,8 +47,8 @@ export const dynamic = "force-dynamic";
  * without OTP_SECRET (so a caller cannot derive it themselves and tell it apart
  * from a real one). It is never used to send mail — see the Phase 1 comment below.
  */
-function fakeLeaderEmail(reference: string): string {
-  const secret = process.env.OTP_SECRET?.trim() || "ksu-crown-lookup-fallback";
+async function fakeLeaderEmail(reference: string): Promise<string> {
+  const secret = (await getEnv("OTP_SECRET"))?.trim() || "ksu-crown-lookup-fallback";
   const local = createHmac("sha256", secret).update(reference).digest("hex").slice(0, 10);
   return `${local}@ksu.edu.sa`;
 }
@@ -71,20 +72,20 @@ function fakeLeaderEmail(reference: string): string {
  * true without special-casing every branch.
  */
 export async function POST(request: Request) {
-  if (!databaseConfigured()) {
+  if (!(await databaseConfigured())) {
     return NextResponse.json(
       { error: "Registration is temporarily unavailable. Please try again later." },
       { status: 503 },
     );
   }
-  if (!otpConfigured()) {
+  if (!(await otpConfigured())) {
     return NextResponse.json(
       { error: "Editing is not configured on this deployment." },
       { status: 503 },
     );
   }
 
-  const limited = rateLimit(clientKey(request, "edit-lookup"), 10, 10 * 60_000);
+  const limited = rateLimit(await clientKey(request, "edit-lookup"), 10, 10 * 60_000);
   if (!limited.ok) {
     return NextResponse.json(
       { error: "Too many attempts. Please wait a moment and try again." },
@@ -132,7 +133,7 @@ export async function POST(request: Request) {
      * already authenticated as the organiser.
      */
     if (presentedAdminSecret) {
-      if (!adminSecret()) {
+      if (!(await adminSecret())) {
         return NextResponse.json(
           { error: "Organiser access is not configured on this deployment." },
           { status: 503 },
@@ -171,7 +172,7 @@ export async function POST(request: Request) {
         openedAs: "organiser",
         reference: team.reference,
         teamName: team.teamName,
-        proof: makeProof(normaliseEmail(leaderAddress), "edit-access", team.id),
+        proof: await makeProof(normaliseEmail(leaderAddress), "edit-access", team.id),
         draft: teamToDraft(team, config),
       });
     }
@@ -188,7 +189,7 @@ export async function POST(request: Request) {
      * reachable when `team` is real, because a fake identity's stored code is
      * never handed to anyone.
      */
-    const email = team ? leaderEmail(team) : fakeLeaderEmail(reference);
+    const email = team ? leaderEmail(team) : await fakeLeaderEmail(reference);
     if (team && !email) {
       return NextResponse.json(
         { error: "That registration has no contact address on file. Contact the organisers." },
@@ -209,7 +210,7 @@ export async function POST(request: Request) {
         );
       }
 
-      if (!mailerConfigured("otp") && !mailerAllowsLogFallback("otp")) {
+      if (!(await (await mailerConfigured("otp"))) && !(await mailerAllowsLogFallback("otp"))) {
         return NextResponse.json(
           { error: "Email is temporarily unavailable. Please contact the organisers." },
           { status: 503 },
@@ -253,7 +254,7 @@ export async function POST(request: Request) {
        * growth. Nothing observable changes, so this is not a new oracle.
        */
       const overGlobalCeiling =
-        (await countAllRecentOtps("edit-access", otpRequestWindowStart())) >= OTP_GLOBAL_MAX_PER_WINDOW;
+        (await countAllRecentOtps("edit-access", otpRequestWindowStart())) >= (await otpGlobalMax());
 
       if (!team && overGlobalCeiling) {
         console.warn(
@@ -270,7 +271,7 @@ export async function POST(request: Request) {
       const record = await createOtp({
         email: normalised,
         purpose: "edit-access",
-        codeHash: hashCode(fresh, normalised, "edit-access"),
+        codeHash: await hashCode(fresh, normalised, "edit-access"),
         expiresAt: otpExpiry(),
       });
 
@@ -344,7 +345,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!safeEqual(hashCode(code, normalised, "edit-access"), record.codeHash)) {
+    if (!safeEqual(await hashCode(code, normalised, "edit-access"), record.codeHash)) {
       const remaining = Math.max(0, OTP_MAX_ATTEMPTS - (record.attempts + 1));
       return NextResponse.json(
         {
@@ -380,7 +381,7 @@ export async function POST(request: Request) {
       stage: "verified",
       reference: team.reference,
       teamName: team.teamName,
-      proof: makeProof(normalised, "edit-access", team.id),
+      proof: await makeProof(normalised, "edit-access", team.id),
       draft: teamToDraft(team, config),
     });
   } catch (error) {

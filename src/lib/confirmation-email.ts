@@ -559,7 +559,7 @@ export async function sendRegistrationConfirmation(
     return false;
   }
 
-  if (!mailerConfigured("confirmation") && !mailerAllowsLogFallback("confirmation")) {
+  if (!(await (await mailerConfigured("confirmation"))) && !(await mailerAllowsLogFallback("confirmation"))) {
     console.error(
       `[mailer] ${team.reference} registered but no confirmation was sent — the confirmation SMTP account is not configured.`,
     );

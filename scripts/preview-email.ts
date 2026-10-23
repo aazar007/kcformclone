@@ -28,14 +28,12 @@ const GMAIL_CLIP_BYTES = 102 * 1024;
 async function main() {
   const reference = process.argv[2];
 
-  const prisma = await getPrisma();
-
   const team = reference
-    ? await prisma.team.findUnique({
+    ? await (await getPrisma()).team.findUnique({
         where: { reference },
         include: { members: { orderBy: { position: "asc" } } },
       })
-    : await prisma.team.findFirst({
+    : await (await getPrisma()).team.findFirst({
         include: { members: { orderBy: { position: "asc" } } },
         orderBy: { createdAt: "asc" },
       });

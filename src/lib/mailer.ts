@@ -12,6 +12,7 @@
  */
 
 import nodemailer, { type Transporter } from "nodemailer";
+import { getEnv } from "./env";
 import { emailCopy, emailDirection, fill, type EmailCopy } from "./email-copy";
 import { DEFAULT_LANGUAGE, arabicDigits, type Language } from "./i18n";
 import { OTP_TTL_MINUTES, type OtpPurpose } from "./otp";
@@ -106,20 +107,20 @@ export function isRelayRefusal(error: unknown): boolean {
   return error instanceof MailDeliveryError && error.responseCode !== null;
 }
 
-export function mailerConfigured(channel: MailChannel = "otp") {
-  return Boolean(channelSettings(channel).host);
+export async function mailerConfigured(channel: MailChannel = "otp"): Promise<boolean> {
+  return Boolean((await channelSettings(channel)).host);
 }
 
 /** True when a missing mailer is survivable — i.e. local development. */
-export function mailerAllowsLogFallback(channel: MailChannel = "otp") {
-  return !mailerConfigured(channel) && process.env.NODE_ENV !== "production";
+export async function mailerAllowsLogFallback(channel: MailChannel = "otp"): Promise<boolean> {
+  return !(await mailerConfigured(channel)) && process.env.NODE_ENV !== "production";
 }
 
 /** A channel's own setting if it has one, otherwise the shared one. */
-function read(channel: MailChannel, field: string): string {
-  const specific = process.env[`${CHANNEL_PREFIX[channel]}${field}`]?.trim();
+async function read(channel: MailChannel, field: string): Promise<string> {
+  const specific = (await getEnv(`${CHANNEL_PREFIX[channel]}${field}`))?.trim();
   if (specific) return specific;
-  return process.env[`SMTP_${field}`]?.trim() ?? "";
+  return (await getEnv(`SMTP_${field}`))?.trim() ?? "";
 }
 
 /**
@@ -129,10 +130,10 @@ function read(channel: MailChannel, field: string): string {
  * surrounding whitespace. Every other setting is a name or a host, where stray
  * space is a typo worth correcting silently.
  */
-function readSecret(channel: MailChannel, field: string): string {
-  const specific = process.env[`${CHANNEL_PREFIX[channel]}${field}`];
+async function readSecret(channel: MailChannel, field: string): Promise<string> {
+  const specific = await getEnv(`${CHANNEL_PREFIX[channel]}${field}`);
   if (specific) return specific;
-  return process.env[`SMTP_${field}`] ?? "";
+  return (await getEnv(`SMTP_${field}`)) ?? "";
 }
 
 export interface ChannelSettings {
@@ -159,23 +160,23 @@ export interface ChannelSettings {
  * Read fresh on every call rather than cached, so an operator editing `.env` sees
  * the effect without wondering whether a stale value is being used.
  */
-export function channelSettings(channel: MailChannel): ChannelSettings {
-  const parsedPort = Number.parseInt(read(channel, "PORT") || "587", 10);
+export async function channelSettings(channel: MailChannel): Promise<ChannelSettings> {
+  const parsedPort = Number.parseInt((await read(channel, "PORT")) || "587", 10);
   const port = Number.isFinite(parsedPort) ? parsedPort : 587;
 
   return {
     channel,
-    host: read(channel, "HOST"),
+    host: await read(channel, "HOST"),
     port,
     // Implicit TLS on 465; STARTTLS everywhere else.
-    secure: read(channel, "SECURE") === "true" || port === 465,
-    user: read(channel, "USER"),
-    pass: readSecret(channel, "PASS"),
-    from: read(channel, "FROM"),
-    replyTo: read(channel, "REPLY_TO") || process.env.MAIL_REPLY_TO?.trim() || "",
+    secure: (await read(channel, "SECURE")) === "true" || port === 465,
+    user: await read(channel, "USER"),
+    pass: await readSecret(channel, "PASS"),
+    from: await read(channel, "FROM"),
+    replyTo: (await read(channel, "REPLY_TO")) || (await getEnv("MAIL_REPLY_TO"))?.trim() || "",
     /* Distinguished by looking for the channel's own *user*, not its host: a
        deployment may legitimately use one host with two accounts on it. */
-    dedicated: Boolean(process.env[`${CHANNEL_PREFIX[channel]}USER`]?.trim()),
+    dedicated: Boolean((await getEnv(`${CHANNEL_PREFIX[channel]}USER`))?.trim()),
   };
 }
 
@@ -325,10 +326,10 @@ export interface SendOutcome {
  * one a message uses is a property of the message, not of a global setting.
  */
 export async function sendMail(mail: OutgoingMail): Promise<SendOutcome> {
-  const settings = channelSettings(mail.channel);
+  const settings = await channelSettings(mail.channel);
 
   if (!settings.host) {
-    if (!mailerAllowsLogFallback(mail.channel)) throw new MailerNotConfiguredError(mail.channel);
+    if (!(await mailerAllowsLogFallback(mail.channel))) throw new MailerNotConfiguredError(mail.channel);
 
     const which = settings.dedicated ? `the ${mail.channel} channel` : "SMTP";
     console.warn(

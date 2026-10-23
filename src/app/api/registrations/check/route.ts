@@ -58,7 +58,7 @@ export async function POST(request: Request) {
   /* Debounced typing still adds up, so the ceiling is loose enough for a real
      captain and tight enough that scraping the database one address at a time
      is not worth anyone's afternoon. */
-  const limit = rateLimit(clientKey(request, "duplicate-check"), 60, 60_000);
+  const limit = rateLimit(await clientKey(request, "duplicate-check"), 60, 60_000);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Checking too quickly. Pause for a moment." },
@@ -85,10 +85,10 @@ export async function POST(request: Request) {
   const editProof = typeof body.editProof === "string" ? body.editProof : "";
   let exceptTeamId: string | undefined;
   let teamEmails = new Set<string>();
-  if (editingReference && editProof && otpConfigured()) {
+  if (editingReference && editProof && (await otpConfigured())) {
     const team = await findTeamByReference(editingReference);
     const leader = team ? leaderEmail(team) : null;
-    if (team && leader && verifyProof(editProof, normaliseEmail(leader), "edit-access", team.id)) {
+    if (team && leader && (await verifyProof(editProof, normaliseEmail(leader), "edit-access", team.id))) {
       exceptTeamId = team.id;
       teamEmails = teamVerifiedEmails(team);
     }
@@ -99,13 +99,20 @@ export async function POST(request: Request) {
     body.emailProofs && typeof body.emailProofs === "object"
       ? (body.emailProofs as Record<string, unknown>)
       : {};
-  const skip = otpSkipVerify();
-  const emails = requestedEmails.filter((email) => {
+  const skip = await otpSkipVerify();
+  const otpReady = await otpConfigured();
+  const emails: string[] = [];
+  for (const email of requestedEmails) {
     const key = normaliseEmail(email);
-    if (skip || teamEmails.has(key)) return true;
+    if (skip || teamEmails.has(key)) {
+      emails.push(email);
+      continue;
+    }
     const proof = proofs[key];
-    return otpConfigured() && typeof proof === "string" && verifyProof(proof, key, "player-email");
-  });
+    if (otpReady && typeof proof === "string" && (await verifyProof(proof, key, "player-email"))) {
+      emails.push(email);
+    }
+  }
   const studentIds = emails.length > 0 || exceptTeamId ? requestedIds : [];
 
   const members: DuplicateCheckResponse["members"] = [];

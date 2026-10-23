@@ -14,6 +14,8 @@
  * columns repeated on each row — so organisers can pivot without joining tabs.
  */
 
+import { getEnv } from "./env";
+
 /**
  * Header labels this app writes, in column order. Must stay in sync with
  * `COLUMNS` in `Code.gs`, which appends one further column the app never sends:
@@ -81,8 +83,8 @@ function sleep(ms: number) {
 }
 
 /** The export is unavailable until the web app URL is configured. */
-export function sheetsConfigured() {
-  return Boolean(process.env.SHEET_WEBHOOK_URL?.trim());
+export async function sheetsConfigured(): Promise<boolean> {
+  return Boolean((await getEnv("SHEET_WEBHOOK_URL"))?.trim());
 }
 
 /**
@@ -101,8 +103,8 @@ export function sheetsConfigured() {
  *
  * Null also when unset, which is the normal case — the link simply does not appear.
  */
-export function sheetUrl(): string | null {
-  const raw = process.env.SHEET_URL?.trim();
+export async function sheetUrl(): Promise<string | null> {
+  const raw = (await getEnv("SHEET_URL"))?.trim();
   if (!raw) return null;
 
   try {
@@ -131,8 +133,8 @@ export function looksLikeSheetUrl(raw: string | undefined | null): boolean {
  * publicly reachable, so the secret is what stops a stranger posting rows —
  * `Code.gs` rejects any request that does not carry it.
  */
-function endpoint(): string {
-  const raw = process.env.SHEET_WEBHOOK_URL?.trim();
+async function endpoint(): Promise<string> {
+  const raw = (await getEnv("SHEET_WEBHOOK_URL"))?.trim();
   if (!raw) throw new SheetsError("SHEET_WEBHOOK_URL is not configured", 503);
 
   let url: URL;
@@ -142,7 +144,7 @@ function endpoint(): string {
     throw new SheetsError("SHEET_WEBHOOK_URL is not a valid URL", 503);
   }
 
-  const secret = process.env.SHEET_WEBHOOK_SECRET?.trim();
+  const secret = (await getEnv("SHEET_WEBHOOK_SECRET"))?.trim();
   if (secret) url.searchParams.set("secret", secret);
   return url.toString();
 }
@@ -261,7 +263,7 @@ async function attempt(
   payload: unknown,
   timeoutMs: number,
 ): Promise<ScriptResponse> {
-  const url = new URL(endpoint());
+  const url = new URL(await endpoint());
   url.searchParams.set("action", action);
 
   const body = payload === undefined ? undefined : JSON.stringify(payload);
@@ -385,7 +387,7 @@ export interface SheetHealth {
 
 /** Probe the deployment. */
 export async function checkSheetConnection(): Promise<SheetHealth> {
-  if (!sheetsConfigured()) {
+  if (!(await sheetsConfigured())) {
     return { ok: false, configured: false, error: "SHEET_WEBHOOK_URL is not set" };
   }
 

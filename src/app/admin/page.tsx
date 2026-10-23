@@ -62,7 +62,7 @@ export default async function AdminPage() {
         configSource={source}
         initialLogoVersions={logoVersions}
         mode="owner"
-        sheetUrl={sheetUrl()}
+        sheetUrl={await sheetUrl()}
       />
     </div>
   );

@@ -1,24 +1,38 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare";
-
 /**
- * Get any secret from Secrets Store bindings.
+ * Reading settings and secrets.
  *
- * Works dynamically — add a new binding to wrangler.jsonc, deploy,
- * and call `await getEnv("NEW_BINDING")` with no other changes.
+ * Every setting the app reads at run time goes through `getEnv()` rather than
+ * `process.env` directly. It is async because some hosts only hand the code its
+ * variables per request, not at start-up:
+ *
+ * - **Cloudflare Workers** (OpenNext) keep the Worker's variables and secrets in
+ *   the request context's `env`. OpenNext publishes that context on a well-known
+ *   global symbol, which is read here so no Cloudflare package has to be imported
+ *   (and the app still builds and runs on Node, Vercel and Prisma).
+ * - **Everywhere else** the value comes from `process.env`, exactly as before.
+ *
+ * A Worker binding wins over `process.env` when both exist, because the binding is
+ * the value set in the Cloudflare dashboard for this deployment.
+ *
+ * The result is the raw string, never trimmed: callers decide whether whitespace
+ * matters (passwords are taken literally; names and hosts are trimmed).
  */
-export async function getEnv(key: string): Promise<string | undefined> {
-  const { env } = getCloudflareContext();
-  const binding = (env as unknown as Record<string, unknown>)[key];
 
-  // Secrets Store binding — async .get()
-  if (binding && typeof (binding as { get?: unknown }).get === "function") {
-    return await (binding as { get(): Promise<string> }).get();
-  }
+const CLOUDFLARE_CONTEXT = Symbol.for("__cloudflare-context__");
 
-  // Regular Worker secret (string) — fallback
-  if (typeof binding === "string") {
-    return binding;
-  }
+interface CloudflareContext {
+  env?: Record<string, unknown>;
+}
 
-  return undefined;
+function workerBinding(name: string): string | undefined {
+  const context = (globalThis as Record<symbol, unknown>)[CLOUDFLARE_CONTEXT] as
+    | CloudflareContext
+    | undefined;
+  const value = context?.env?.[name];
+  return typeof value === "string" ? value : undefined;
+}
+
+/** The named setting, or `undefined` when it is not set anywhere. */
+export async function getEnv(name: string): Promise<string | undefined> {
+  return workerBinding(name) ?? process.env[name];
 }

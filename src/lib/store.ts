@@ -166,21 +166,24 @@ function memberRows(input: TeamInput) {
 
 /** All teams with their rosters, newest first. */
 export async function listTeams(): Promise<StoredTeam[]> {
-  return getPrisma().team.findMany({
+  const prisma = await getPrisma();
+  return prisma.team.findMany({
     include: { members: { orderBy: { position: "asc" } } },
     orderBy: { createdAt: "desc" },
   });
 }
 
 export async function findTeamByReference(reference: string): Promise<StoredTeam | null> {
-  return getPrisma().team.findUnique({
+  const prisma = await getPrisma();
+  return prisma.team.findUnique({
     where: { reference: reference.trim().toUpperCase() },
     include: { members: { orderBy: { position: "asc" } } },
   });
 }
 
 export async function findTeamById(id: string): Promise<StoredTeam | null> {
-  return getPrisma().team.findUnique({
+  const prisma = await getPrisma();
+  return prisma.team.findUnique({
     where: { id },
     include: { members: { orderBy: { position: "asc" } } },
   });
@@ -188,7 +191,8 @@ export async function findTeamById(id: string): Promise<StoredTeam | null> {
 
 /** The stored spelling of a taken team name, or `null` when it is free. */
 export async function findTeamNameClash(key: string, exceptTeamId?: string): Promise<string | null> {
-  const clash = await getPrisma().team.findUnique({
+  const prisma = await getPrisma();
+  const clash = await prisma.team.findUnique({
     where: { teamNameKey: key },
     select: { id: true, teamName: true },
   });
@@ -199,7 +203,8 @@ export async function findTeamNameClash(key: string, exceptTeamId?: string): Pro
 /** Insert a team and its roster in one transaction. */
 export async function createTeam(reference: string, input: TeamInput): Promise<StoredTeam> {
   try {
-    return await getPrisma().team.create({
+    const prisma = await getPrisma();
+    return await prisma.team.create({
       data: {
         reference,
         teamName: input.teamName,
@@ -229,7 +234,8 @@ export async function createTeam(reference: string, input: TeamInput): Promise<S
  */
 export async function updateTeam(id: string, input: TeamInput): Promise<StoredTeam> {
   try {
-    return await getPrisma().$transaction(async (tx) => {
+    const prisma = await getPrisma();
+    return await prisma.$transaction(async (tx) => {
       /* Consent is recorded the first time only. An edit that re-ticks the box
          must not move the date, or the audit trail would show the last edit
          rather than when the captain actually agreed. */
@@ -269,7 +275,8 @@ export async function updateTeam(id: string, input: TeamInput): Promise<StoredTe
 }
 
 export async function referenceExists(reference: string): Promise<boolean> {
-  const found = await getPrisma().team.findUnique({
+  const prisma = await getPrisma();
+  const found = await prisma.team.findUnique({
     where: { reference },
     select: { id: true },
   });
@@ -285,21 +292,23 @@ export async function referenceExists(reference: string): Promise<boolean> {
  * delete — which lets the API answer 404 rather than pretending it worked.
  */
 export async function deleteTeam(id: string): Promise<string | null> {
-  const team = await getPrisma().team.findUnique({
+  const prisma = await getPrisma();
+  const team = await prisma.team.findUnique({
     where: { id },
     select: { reference: true },
   });
   if (!team) return null;
 
-  await getPrisma().team.delete({ where: { id } });
+  await prisma.team.delete({ where: { id } });
   return team.reference;
 }
 
 /** Total teams and players, for the admin header. */
 export async function registrationCounts() {
+  const prisma = await getPrisma();
   const [teams, players] = await Promise.all([
-    getPrisma().team.count(),
-    getPrisma().member.count(),
+    prisma.team.count(),
+    prisma.member.count(),
   ]);
   return { teams, players };
 }
@@ -331,11 +340,12 @@ export async function findMemberClashes(
   members: { email: string; studentId: string }[],
   exceptTeamId?: string,
 ): Promise<MemberClash[]> {
+  const prisma = await getPrisma();
   const emails = members.map((member) => member.email.toLowerCase()).filter(Boolean);
   const studentIds = members.map((member) => member.studentId.trim()).filter(Boolean);
   if (emails.length === 0 && studentIds.length === 0) return [];
 
-  const found = await getPrisma().member.findMany({
+  const found = await prisma.member.findMany({
     where: {
       OR: [
         emails.length > 0 ? { email: { in: emails } } : undefined,
@@ -391,13 +401,15 @@ export async function findMemberClashes(
 
 /** The stored config, or `null` when the organisers have never saved one. */
 export async function readStoredConfig(): Promise<unknown | null> {
-  const row = await getPrisma().config.findUnique({ where: { id: 1 } });
+  const prisma = await getPrisma();
+  const row = await prisma.config.findUnique({ where: { id: 1 } });
   return row?.data ?? null;
 }
 
 export async function writeStoredConfig(data: unknown): Promise<void> {
+  const prisma = await getPrisma();
   const value = data as Prisma.InputJsonValue;
-  await getPrisma().config.upsert({
+  await prisma.config.upsert({
     where: { id: 1 },
     create: { id: 1, data: value },
     update: { data: value },
@@ -410,7 +422,8 @@ export async function writeStoredConfig(data: unknown): Promise<void> {
 
 /** How many codes an address has asked for recently — the rate limit. */
 export async function countRecentOtps(email: string, purpose: OtpPurpose, since: Date) {
-  return getPrisma().otpCode.count({
+  const prisma = await getPrisma();
+  return prisma.otpCode.count({
     where: { email: email.toLowerCase(), purpose, createdAt: { gte: since } },
   });
 }
@@ -429,7 +442,8 @@ export async function countRecentOtps(email: string, purpose: OtpPurpose, since:
  * tournament with a few hundred teams asking for codes legitimately stays far below it.
  */
 export async function countAllRecentOtps(purpose: OtpPurpose, since: Date) {
-  return getPrisma().otpCode.count({
+  const prisma = await getPrisma();
+  return prisma.otpCode.count({
     where: { purpose, createdAt: { gte: since } },
   });
 }
@@ -440,7 +454,7 @@ export async function createOtp(input: {
   codeHash: string;
   expiresAt: Date;
 }) {
-  const prisma = getPrisma();
+  const prisma = await getPrisma();
 
   // Asking for a new code invalidates the previous one, so two codes can never
   // both be live for the same address and purpose.
@@ -465,7 +479,8 @@ export async function createOtp(input: {
 
 /** The live code for an address, if one exists. */
 export async function findActiveOtp(email: string, purpose: OtpPurpose) {
-  return getPrisma().otpCode.findFirst({
+  const prisma = await getPrisma();
+  return prisma.otpCode.findFirst({
     where: {
       email: email.toLowerCase(),
       purpose,
@@ -477,7 +492,8 @@ export async function findActiveOtp(email: string, purpose: OtpPurpose) {
 }
 
 export async function consumeOtp(id: string) {
-  await getPrisma().otpCode.update({
+  const prisma = await getPrisma();
+  await prisma.otpCode.update({
     where: { id },
     data: { consumedAt: new Date() },
   });
@@ -496,7 +512,8 @@ export async function consumeOtp(id: string) {
  * code was issued. A consumed row would still be counted.
  */
 export async function discardOtp(id: string) {
-  await getPrisma().otpCode.deleteMany({ where: { id } });
+  const prisma = await getPrisma();
+  await prisma.otpCode.deleteMany({ where: { id } });
 }
 
 /**
@@ -507,7 +524,8 @@ export async function discardOtp(id: string) {
  * false when the code is spent, consumed, or out of guesses.
  */
 export async function claimOtpAttempt(id: string, maxAttempts: number): Promise<boolean> {
-  const result = await getPrisma().otpCode.updateMany({
+  const prisma = await getPrisma();
+  const result = await prisma.otpCode.updateMany({
     where: { id, consumedAt: null, attempts: { lt: maxAttempts }, expiresAt: { gt: new Date() } },
     data: { attempts: { increment: 1 } },
   });
@@ -516,7 +534,8 @@ export async function claimOtpAttempt(id: string, maxAttempts: number): Promise<
 
 /** Mark a code used, once. False if another request already used it. */
 export async function consumeOtpOnce(id: string): Promise<boolean> {
-  const result = await getPrisma().otpCode.updateMany({
+  const prisma = await getPrisma();
+  const result = await prisma.otpCode.updateMany({
     where: { id, consumedAt: null },
     data: { consumedAt: new Date() },
   });
@@ -524,7 +543,8 @@ export async function consumeOtpOnce(id: string): Promise<boolean> {
 }
 
 export async function registerOtpAttempt(id: string) {
-  const updated = await getPrisma().otpCode.update({
+  const prisma = await getPrisma();
+  const updated = await prisma.otpCode.update({
     where: { id },
     data: { attempts: { increment: 1 } },
     select: { attempts: true },
@@ -534,8 +554,9 @@ export async function registerOtpAttempt(id: string) {
 
 /** Drop spent and ancient codes. Called opportunistically, never on the hot path. */
 export async function pruneOtps() {
+  const prisma = await getPrisma();
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  await getPrisma().otpCode.deleteMany({
+  await prisma.otpCode.deleteMany({
     where: { OR: [{ expiresAt: { lt: cutoff } }, { consumedAt: { lt: cutoff } }] },
   });
 }
@@ -551,6 +572,7 @@ export async function upsertGameLogo(input: {
   height: number;
   bytes: Buffer;
 }) {
+  const prisma = await getPrisma();
   const data = {
     mimeType: input.mimeType,
     width: input.width,
@@ -559,7 +581,7 @@ export async function upsertGameLogo(input: {
     bytes: new Uint8Array(input.bytes),
   };
 
-  return getPrisma().gameLogo.upsert({
+  return prisma.gameLogo.upsert({
     where: { gameId: input.gameId },
     create: { gameId: input.gameId, ...data },
     update: data,
@@ -567,11 +589,13 @@ export async function upsertGameLogo(input: {
 }
 
 export async function getGameLogo(gameId: string) {
-  return getPrisma().gameLogo.findUnique({ where: { gameId } });
+  const prisma = await getPrisma();
+  return prisma.gameLogo.findUnique({ where: { gameId } });
 }
 
 export async function deleteGameLogo(gameId: string) {
-  await getPrisma().gameLogo.deleteMany({ where: { gameId } });
+  const prisma = await getPrisma();
+  await prisma.gameLogo.deleteMany({ where: { gameId } });
 }
 
 /**
@@ -584,7 +608,8 @@ export async function deleteGameLogo(gameId: string) {
  * which makes a new logo a new URL.
  */
 export async function listGameLogoVersions(): Promise<Record<string, number>> {
-  const rows = await getPrisma().gameLogo.findMany({
+  const prisma = await getPrisma();
+  const rows = await prisma.gameLogo.findMany({
     select: { gameId: true, updatedAt: true },
   });
 
@@ -605,7 +630,8 @@ const ADMIN_FAIL_PURPOSE = "admin-fail";
 
 /** When this caller's recent wrong guesses happened, oldest first. */
 export async function recentAdminFailures(key: string, since: Date): Promise<Date[]> {
-  const rows = await getPrisma().otpCode.findMany({
+  const prisma = await getPrisma();
+  const rows = await prisma.otpCode.findMany({
     where: { email: key, purpose: ADMIN_FAIL_PURPOSE, createdAt: { gte: since } },
     select: { createdAt: true },
     orderBy: { createdAt: "asc" },
@@ -615,13 +641,15 @@ export async function recentAdminFailures(key: string, since: Date): Promise<Dat
 
 /** Wrong admin codes from every address combined, since `since`. */
 export async function countAllAdminFailures(since: Date): Promise<number> {
-  return getPrisma().otpCode.count({
+  const prisma = await getPrisma();
+  return prisma.otpCode.count({
     where: { purpose: ADMIN_FAIL_PURPOSE, createdAt: { gte: since } },
   });
 }
 
 export async function addAdminFailure(key: string, ttlMs: number) {
-  await getPrisma().otpCode.create({
+  const prisma = await getPrisma();
+  await prisma.otpCode.create({
     data: {
       email: key,
       purpose: ADMIN_FAIL_PURPOSE,
@@ -632,7 +660,8 @@ export async function addAdminFailure(key: string, ttlMs: number) {
 }
 
 export async function clearAdminFailures(key: string) {
-  await getPrisma().otpCode.deleteMany({ where: { email: key, purpose: ADMIN_FAIL_PURPOSE } });
+  const prisma = await getPrisma();
+  await prisma.otpCode.deleteMany({ where: { email: key, purpose: ADMIN_FAIL_PURPOSE } });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -651,7 +680,8 @@ export interface StaffAccessRecord {
 /** Every grant ever made, live ones first, so the console shows the current list
  *  and the revoked history below it. */
 export async function listStaffAccess(): Promise<StaffAccessRecord[]> {
-  return getPrisma().staffAccess.findMany({
+  const prisma = await getPrisma();
+  return prisma.staffAccess.findMany({
     orderBy: [{ revokedAt: "asc" }, { addedAt: "desc" }],
   });
 }
@@ -665,7 +695,8 @@ export async function listStaffAccess(): Promise<StaffAccessRecord[]> {
  * stored — an address that differs only in case is the same person.
  */
 export async function findLiveStaffAccess(email: string): Promise<StaffAccessRecord | null> {
-  const row = await getPrisma().staffAccess.findUnique({
+  const prisma = await getPrisma();
+  const row = await prisma.staffAccess.findUnique({
     where: { email: email.trim().toLowerCase() },
   });
   return row && !row.revokedAt ? row : null;
@@ -681,8 +712,9 @@ export async function findLiveStaffAccess(email: string): Promise<StaffAccessRec
  * holder's last visit as if it were recent.
  */
 export async function grantStaffAccess(email: string, note: string): Promise<StaffAccessRecord> {
+  const prisma = await getPrisma();
   const normalised = email.trim().toLowerCase();
-  return getPrisma().staffAccess.upsert({
+  return prisma.staffAccess.upsert({
     where: { email: normalised },
     create: { email: normalised, note },
     update: { note, revokedAt: null, lastLoginAt: null },
@@ -692,7 +724,8 @@ export async function grantStaffAccess(email: string, note: string): Promise<Sta
 /** Withdraw access without forgetting it was once given. Returns false when there
  *  was nothing live to withdraw, so the caller can report that honestly. */
 export async function revokeStaffAccess(email: string): Promise<boolean> {
-  const result = await getPrisma().staffAccess.updateMany({
+  const prisma = await getPrisma();
+  const result = await prisma.staffAccess.updateMany({
     where: { email: email.trim().toLowerCase(), revokedAt: null },
     data: { revokedAt: new Date() },
   });
@@ -701,7 +734,8 @@ export async function revokeStaffAccess(email: string): Promise<boolean> {
 
 /** Forget the address entirely — for a typo, not for a person who left. */
 export async function deleteStaffAccess(email: string): Promise<boolean> {
-  const result = await getPrisma().staffAccess.deleteMany({
+  const prisma = await getPrisma();
+  const result = await prisma.staffAccess.deleteMany({
     where: { email: email.trim().toLowerCase() },
   });
   return result.count > 0;
@@ -709,7 +743,8 @@ export async function deleteStaffAccess(email: string): Promise<boolean> {
 
 /** Record a completed sign-in. Best-effort: never fails a login. */
 export async function markStaffLogin(email: string): Promise<void> {
-  await getPrisma().staffAccess.updateMany({
+  const prisma = await getPrisma();
+  await prisma.staffAccess.updateMany({
     where: { email: email.trim().toLowerCase() },
     data: { lastLoginAt: new Date() },
   });
@@ -736,7 +771,8 @@ export interface AdminCredentialRecord {
  */
 export async function getAdminCredential(): Promise<AdminCredentialRecord | null> {
   try {
-    const row = await getPrisma().adminCredential.findUnique({
+    const prisma = await getPrisma();
+    const row = await prisma.adminCredential.findUnique({
       where: { id: ADMIN_CREDENTIAL_ID },
       select: { passwordHash: true, updatedAt: true, updatedVia: true },
     });
@@ -756,7 +792,8 @@ export async function getAdminCredential(): Promise<AdminCredentialRecord | null
  * row and the last write winning, not a unique-constraint error in one of their faces.
  */
 export async function setAdminCredential(passwordHash: string, via = "console"): Promise<void> {
-  await getPrisma().adminCredential.upsert({
+  const prisma = await getPrisma();
+  await prisma.adminCredential.upsert({
     where: { id: ADMIN_CREDENTIAL_ID },
     create: { id: ADMIN_CREDENTIAL_ID, passwordHash, updatedVia: via },
     update: { passwordHash, updatedVia: via },
@@ -771,13 +808,15 @@ export async function setAdminCredential(passwordHash: string, via = "console"):
  * from under the stored hash.
  */
 export async function clearAdminCredential(): Promise<void> {
-  await getPrisma().adminCredential.deleteMany({ where: { id: ADMIN_CREDENTIAL_ID } });
+  const prisma = await getPrisma();
+  await prisma.adminCredential.deleteMany({ where: { id: ADMIN_CREDENTIAL_ID } });
 }
 
 /** Whether a password has been set. Cheaper than fetching the hash when only the fact matters. */
 export async function hasAdminCredential(): Promise<boolean> {
   try {
-    const count = await getPrisma().adminCredential.count({ where: { id: ADMIN_CREDENTIAL_ID } });
+    const prisma = await getPrisma();
+    const count = await prisma.adminCredential.count({ where: { id: ADMIN_CREDENTIAL_ID } });
     return count > 0;
   } catch {
     return false;
@@ -810,6 +849,7 @@ export async function upsertRulebook(input: {
   bytes: Buffer;
   title: string;
 }) {
+  const prisma = await getPrisma();
   const data = {
     mimeType: input.mimeType,
     size: input.bytes.byteLength,
@@ -817,7 +857,7 @@ export async function upsertRulebook(input: {
     title: input.title,
   };
 
-  return getPrisma().rulebook.upsert({
+  return prisma.rulebook.upsert({
     where: { gameId: input.gameId },
     create: { gameId: input.gameId, ...data },
     update: data,
@@ -826,7 +866,8 @@ export async function upsertRulebook(input: {
 
 /** The document itself, bytes included — only the serving route needs this. */
 export async function getRulebook(gameId: string) {
-  return getPrisma().rulebook.findUnique({ where: { gameId } });
+  const prisma = await getPrisma();
+  return prisma.rulebook.findUnique({ where: { gameId } });
 }
 
 /**
@@ -838,7 +879,8 @@ export async function getRulebook(gameId: string) {
  * viewer's URL.
  */
 export async function getRulebookMeta(gameId: string): Promise<RulebookMeta | null> {
-  const row = await getPrisma().rulebook.findUnique({
+  const prisma = await getPrisma();
+  const row = await prisma.rulebook.findUnique({
     where: { gameId },
     select: { title: true, size: true, updatedAt: true },
   });
@@ -853,7 +895,8 @@ export async function getRulebookMeta(gameId: string): Promise<RulebookMeta | nu
  * game at once. One query, metadata only — never the documents themselves.
  */
 export async function listRulebookVersions(): Promise<RulebookVersions> {
-  const rows = await getPrisma().rulebook.findMany({
+  const prisma = await getPrisma();
+  const rows = await prisma.rulebook.findMany({
     select: { gameId: true, title: true, size: true, updatedAt: true },
   });
 
@@ -866,5 +909,6 @@ export async function listRulebookVersions(): Promise<RulebookVersions> {
 }
 
 export async function deleteRulebook(gameId: string): Promise<void> {
-  await getPrisma().rulebook.deleteMany({ where: { gameId } });
+  const prisma = await getPrisma();
+  await prisma.rulebook.deleteMany({ where: { gameId } });
 }

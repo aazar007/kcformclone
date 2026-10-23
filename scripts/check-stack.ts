@@ -77,9 +77,7 @@ async function checkDatabase() {
   if (!url) {
     console.log("✖ DATABASE_URL is not set in .env — registration cannot work.");
     console.log("  Create a PostgreSQL database, set DATABASE_URL, then run:");
-    /* `npx prisma` is Prisma 8 now, and 8 has no `migrate`. The npm script routes to the
-       v7 CLI, which owns the schema and the migration history. */
-    console.log("    npm run db:migrate\n");
+    console.log("    npx prisma migrate dev\n");
     return false;
   }
 
@@ -105,10 +103,10 @@ async function checkDatabase() {
       console.log("  Set DATABASE_URL in .env.\n");
     } else if (/does not exist|P2021|relation|P1010|authentication|password/i.test(message)) {
       console.log("  The database may not be migrated yet, or the credentials are wrong. Try:");
-      console.log("    npm run db:migrate\n");
+      console.log("    npx prisma migrate dev\n");
     } else {
       console.log("  Check that PostgreSQL is running and that DATABASE_URL is correct.");
-      console.log("  If this is a fresh database, run: npm run db:migrate\n");
+      console.log("  If this is a fresh database, run: npx prisma migrate dev\n");
     }
     return false;
   }
@@ -124,8 +122,8 @@ const CHANNEL_LABEL: Record<MailChannel, string> = {
 };
 
 /** One line describing which account a channel will send from, and where. */
-function describeChannel(channel: MailChannel): string | null {
-  const settings = channelSettings(channel);
+async function describeChannel(channel: MailChannel): Promise<string | null> {
+  const settings = (await channelSettings(channel));
   if (!settings.host) return null;
 
   const identity = settings.user || "(no user — unauthenticated relay)";
@@ -180,7 +178,7 @@ async function checkEmail() {
      is otherwise a very confusing symptom. */
   const channels: MailChannel[] = ["otp", "confirmation"];
   const described = new Map<MailChannel, string | null>();
-  for (const channel of channels) described.set(channel, describeChannel(channel));
+  for (const channel of channels) described.set(channel, await describeChannel(channel));
 
   for (const channel of channels) {
     const line = described.get(channel);
@@ -215,7 +213,7 @@ async function checkEmail() {
 
   /* A display name with no address is not a valid From, and providers reject it. */
   for (const channel of configured) {
-    const settings = channelSettings(channel);
+    const settings = (await channelSettings(channel));
     if (settings.from && !settings.from.includes("@") && !settings.user.includes("@")) {
       console.log(
         `✖ ${CHANNEL_LABEL[channel]}: the From is "${settings.from}", which has no address,`,
@@ -253,7 +251,7 @@ async function checkEmail() {
  * but says plainly what it did and did not prove.
  */
 async function probeChannel(channel: MailChannel): Promise<boolean> {
-  const settings = channelSettings(channel);
+  const settings = (await channelSettings(channel));
   const requested = (process.env.MAIL_TEST_TO ?? "").trim();
   const to = requested || settings.user;
 
@@ -368,7 +366,7 @@ async function checkSheet() {
     console.log("⚠ SHEET_URL does not look like a Google Sheets address. Expected:");
     console.log("  https://docs.google.com/spreadsheets/d/<id>/edit");
     console.log(`  got: ${rawSheetUrl}`);
-  } else if (sheetUrl()) {
+  } else if (await sheetUrl()) {
     console.log(`✓ SHEET_URL is a valid link (…${rawSheetUrl.slice(-24)})`);
   } else {
     console.log("⚠ SHEET_URL is set but is not a linkable http(s) URL — no link is shown.");
@@ -444,8 +442,8 @@ async function checkConsole() {
   const [owner, staff, hashed, twoStep] = [
     await adminHref(),
     await staffHref(),
-    adminSecretIsHashed(),
-    adminTwoStep(),
+    await adminSecretIsHashed(),
+    await adminTwoStep(),
   ];
 
   if (!owner) {
