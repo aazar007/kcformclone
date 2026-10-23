@@ -23,22 +23,25 @@
       "SMTP_OTP_USER"
     ]
   },
-  "images": {
-    "binding": "IMAGES"
-  },
  "hyperdrive": [
     {
       "binding": "DATABASE_URL",
       "id": "1ae455bb1fdb475693dc2b5fbe8625d1"
     }
   ],
-"services": [
-  {
-    "binding": "WORKER_SELF_REFERENCE",
-    "service": "ksucrownform",
-    "environment": "production"
-  }
-]
+  "images": {
+    "binding": "IMAGES"
+  },
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "WORKER_SELF_REFERENCE",
+        "type": "service",
+        "service": "ksucrownform",
+        "environment": "production"
+      }
+    ]
+  },
 
 
 }
