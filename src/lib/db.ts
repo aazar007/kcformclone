@@ -31,7 +31,7 @@ let cached: PrismaClient | null = null;
 export function getPrisma(): PrismaClient {
   if (cached) return cached;
 
-  const connectionString = process.env.DATABASE_URL?.trim();
+  const connectionString = env.database_binding.connectionString;
   if (!connectionString) throw new DatabaseNotConfiguredError();
 
   cached =
