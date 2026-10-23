@@ -4,7 +4,7 @@
  * Every setting the app reads at run time goes through `getEnv()` rather than
  * `process.env` directly. It is async because some hosts only hand the code its
  * variables per request, not at start-up:
- *
+ * hi
  * - **Cloudflare Workers** (OpenNext) keep the Worker's variables and secrets in
  *   the request context's `env`. OpenNext publishes that context on a well-known
  *   global symbol, which is read here so no Cloudflare package has to be imported
