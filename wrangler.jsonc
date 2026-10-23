@@ -15,6 +15,16 @@
   "images": {
     "binding": "IMAGES"
   },
+ "secrets_store_secrets": [
+     {
+       "binding": "DATABASE_URL",
+       "store_id": "9706271bba9b4abf9d759dc625154617",
+       "secret_name": "DATABASE_URL"
+     },
+   ],
+  "images": {
+    "binding": "IMAGES"
+  },
   "unsafe": {
     "bindings": [
       {
@@ -24,6 +34,7 @@
         "environment": "production"
       }
     ]
-  }
+  },
+
 }
 // hi
