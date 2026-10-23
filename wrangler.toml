@@ -14,7 +14,7 @@ enabled = true
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "1ae455bb1fdb475693dc2b5fbe8625d1"
-localConnectionString = "postgres://USER:PASSWORD@HOST:PORT/DATABASE"
+localConnectionString = "postgres://4605946ff42f0621362dab9e2accc8738e39dc4d2d71b55913fdc37e0b7e99ce:sk_6R5t-C-zxgVirVWsSmrmy@pooled.db.prisma.io:5432/postgres?sslmode=require"
 
 [images]
 binding = "IMAGES"
