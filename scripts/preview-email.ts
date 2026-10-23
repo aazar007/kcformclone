@@ -29,7 +29,7 @@ async function main() {
   const reference = process.argv[2];
 
   const team = reference
-    ? await getPrisma().team.findUnique({
+    ? (await getPrisma().team.findUnique({
         where: { reference },
         include: { members: { orderBy: { position: "asc" } } },
       })
