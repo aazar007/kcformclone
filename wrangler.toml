@@ -4,22 +4,29 @@ upload_source_maps = true
 compatibility_date = "2026-10-19"
 compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
 
+# Keep plain-text variables added in the Cloudflare dashboard (ADMIN_PATH, STAFF_PATH,
+# ADMIN_EMAIL, ...). Without this, every deploy deletes any text variable that is not
+# listed under [vars] below. Secrets are never affected either way.
+keep_vars = true
+
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
 
 [observability]
 enabled = true
-
-[[hyperdrive]]
-binding = "HYPERDRIVE"
-id = "1ae455bb1fdb475693dc2b5fbe8625d1"
-localConnectionString = "postgres://4605946ff42f0621362dab9e2accc8738e39dc4d2d71b55913fdc37e0b7e99ce:sk_6R5t-C-zxgVirVWsSmrmy@pooled.db.prisma.io:5432/postgres?sslmode=require"
+[vars]
+SMTP_OTP_HOST = "smtp.gmail.com"
+# Database: the app connects with the DATABASE_URL Worker secret
+# (Settings → Variables and Secrets). Prisma Postgres already pools connections.
+# To use Hyperdrive instead, add a [[hyperdrive]] block with binding = "HYPERDRIVE"
+# and the ID of a Hyperdrive config in THIS Cloudflare account; it takes priority.
+# Local `wrangler dev`: put DATABASE_URL in `.dev.vars` (gitignored).
 
 [images]
 binding = "IMAGES"
 
+# OpenNext calls the Worker itself for cache revalidation, so this must match `name` above.
 [[services]]
 binding = "WORKER_SELF_REFERENCE"
 service = "ksucrownform"
-environment = "production"
