@@ -624,7 +624,7 @@ export async function adminLogin(
   const key = callerKey(request);
   if (await checkAdminSecret(candidate)) {
     clearFailures(key);
-    if (databaseConfigured()) await clearAdminFailures(key).catch(() => {});
+    if (await databaseConfigured()) await clearAdminFailures(key).catch(() => {});
     return { ok: true };
   }
 
