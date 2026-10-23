@@ -1,140 +1,184 @@
 import { NextResponse } from "next/server";
+import { NOT_CONFIGURED_MESSAGE, UNAUTHORISED_MESSAGE, adminSecret, isAdminRequest } from "@/lib/admin-auth";
+import { validateAdminTeamEdit, type AdminTeamEdit } from "@/lib/admin-edit";
+import { loadConfig } from "@/lib/config-store";
+import { databaseConfigured } from "@/lib/db";
 import {
-  SESSION_COOKIE,
-  adminEmail,
-  adminSecret,
-  adminTwoStep,
-  createAdminSession,
-  sessionCookieOptions,
-  usingDevSecret,
-} from "@/lib/admin-auth";
-import { OTP_MAX_ATTEMPTS, hashCode, otpSkipVerify, safeEqual } from "@/lib/otp";
-import { digitsOnly } from "@/lib/i18n";
-import { clientKey, rateLimit } from "@/lib/rate-limit";
-import { claimOtpAttempt, consumeOtp, consumeOtpOnce, findActiveOtp } from "@/lib/store";
+  DuplicateValueError,
+  deleteTeam,
+  findMemberClashes,
+  findTeamById,
+  findTeamNameClash,
+  updateTeam,
+} from "@/lib/store";
+import { teamNameKey } from "@/lib/team-name";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Step two of the grand admin's sign-in: exchange the emailed code for a session.
- *
- * The address is never taken from the request — it is always `ADMIN_EMAIL`, read from the
- * environment. That removes a whole class of problem: there is no address to enumerate,
- * no signed challenge to carry between steps, and no way to redirect the second factor to
- * somewhere else. The code is bound to that address in its hash anyway, so it could not
- * be redeemed elsewhere even if a caller did name one.
- *
- * A wrong code spends one of `OTP_MAX_ATTEMPTS` and burns the code at the ceiling, which
- * is what keeps this from being a guessable endpoint: the browser has no secret in hand at
- * this point, so the code is the only credential in play.
- */
-export async function POST(request: Request) {
+/** Shared gate for both verbs. */
+async function guard(request: Request) {
   if (!(await adminSecret())) {
-    return NextResponse.json(
-      { error: "Admin access is not configured on this deployment." },
-      { status: 503 },
-    );
+    return NextResponse.json({ error: NOT_CONFIGURED_MESSAGE }, { status: 503 });
   }
-
-  const limited = rateLimit(await clientKey(request, "admin-verify-otp"), 30, 10 * 60_000);
-  if (!limited.ok) {
-    return NextResponse.json(
-      { error: "Too many attempts. Please wait a moment and try again." },
-      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
-    );
+  if (!(await isAdminRequest(request))) {
+    return NextResponse.json({ error: UNAUTHORISED_MESSAGE }, { status: 401 });
   }
+  if (!(await databaseConfigured())) {
+    return NextResponse.json({ error: "DATABASE_URL is not set." }, { status: 503 });
+  }
+  return null;
+}
 
-  let body: { code?: unknown };
+/**
+ * Remove a team.
+ *
+ * Destructive and not undoable, so the reference is echoed back — that is what an
+ * organiser needs if they have to explain, or rebuild, what they deleted.
+ */
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const denied = await guard(request);
+  if (denied) return denied;
+
+  const { id } = await params;
+
   try {
-    body = (await request.json()) as { code?: unknown };
+    const reference = await deleteTeam(id);
+    if (!reference) {
+      return NextResponse.json({ error: "That registration no longer exists." }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true, reference });
+  } catch (error) {
+    console.error("[admin:team:delete]", error);
+    return NextResponse.json({ error: "Could not remove that registration." }, { status: 502 });
+  }
+}
+
+/**
+ * Save an organiser's edit to a team and its roster.
+ *
+ * Validation is the admin variant (`validateAdminTeamEdit`): the same field rules
+ * as the public form, but without email proofs and with roster composition
+ * reported as a warning rather than a hard failure.
+ */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const denied = await guard(request);
+  if (denied) return denied;
+
+  const { id } = await params;
+
+  let body: unknown;
+  try {
+    body = await request.json();
   } catch {
     return NextResponse.json({ error: "Malformed request body" }, { status: 400 });
   }
 
-  /* Local testing, dev only. `otpSkipVerify` is a no-op in production and the caller has
-     already passed the secret check by this point in that flow. */
-  if (await otpSkipVerify()) return await sessionResponse();
-
-  if (!(await adminTwoStep())) {
-    /* No second factor is configured, so there is no code to check — which means there is
-       nothing this endpoint can legitimately do. Refusing is the only safe answer: it is
-       reachable without the secret, so completing a sign-in here would be a way in that
-       skips step one entirely. */
-    return NextResponse.json(
-      { error: "Two-step sign-in is not configured. Set ADMIN_EMAIL and restart the app." },
-      { status: 503 },
-    );
-  }
-
-  const email = await adminEmail();
-  if (!email) {
-    return NextResponse.json(
-      { error: "Two-step sign-in is not configured. Set ADMIN_EMAIL and restart the app." },
-      { status: 503 },
-    );
-  }
-
-  const code = digitsOnly(typeof body.code === "string" ? body.code : "");
-  if (code.length !== 6) {
-    return NextResponse.json({ error: "Enter the 6-digit code we emailed you" }, { status: 400 });
-  }
-
   try {
-    const record = await findActiveOtp(email, "admin-access");
-    if (!record) {
+    const team = await findTeamById(id);
+    if (!team) {
+      return NextResponse.json({ error: "That registration no longer exists." }, { status: 404 });
+    }
+
+    const { config } = await loadConfig();
+    const parsed = validateAdminTeamEdit((body ?? {}) as AdminTeamEdit, config);
+
+    if (!parsed.ok) {
       return NextResponse.json(
-        { error: "That code has expired. Enter the secret again to be sent a new one." },
+        { error: "Some details are invalid", errors: parsed.errors },
         { status: 400 },
       );
     }
 
-    /* Claim the attempt before comparing, so two requests racing on the same code cannot
-       both get a fresh allowance out of one counter. */
-    const withinBudget = await claimOtpAttempt(record.id, OTP_MAX_ATTEMPTS);
-    if (!withinBudget) {
-      await consumeOtp(record.id).catch(() => {});
+    const { input, warnings } = parsed;
+
+    /* Uniqueness against every *other* team. The database enforces it anyway, but
+       checking first is what lets the organiser be told which field clashed. */
+    const takenName = await findTeamNameClash(input.teamNameKey, id);
+    if (takenName) {
       return NextResponse.json(
-        { error: "Too many incorrect attempts. Enter the secret again to be sent a new one." },
-        { status: 429 },
+        {
+          error: `The team name “${takenName}” is already taken`,
+          errors: { teamName: "Another team already uses this name" },
+        },
+        { status: 409 },
       );
     }
 
-    if (!safeEqual(await hashCode(code, email, "admin-access"), record.codeHash)) {
-      const remaining = Math.max(0, OTP_MAX_ATTEMPTS - (record.attempts + 1));
+    const clashes = await findMemberClashes(
+      input.members.map((member) => ({ email: member.email, studentId: member.studentId })),
+      id,
+    );
+    if (clashes.length > 0) {
+      const errors: Record<string, string> = {};
+      input.members.forEach((member, index) => {
+        const clash = clashes.find(
+          (candidate) =>
+            candidate.email.toLowerCase() === member.email.toLowerCase() ||
+            (member.studentId && candidate.studentId.toLowerCase() === member.studentId.toLowerCase()),
+        );
+        if (!clash) return;
+        errors[clash.field === "studentId" ? `member.${index}.studentId` : `member.${index}.email`] =
+          `Already registered with ${clash.teamName}`;
+      });
+
       return NextResponse.json(
         {
           error:
-            remaining > 0
-              ? `That code is not correct. ${remaining} attempt${remaining === 1 ? "" : "s"} left.`
-              : "Too many incorrect attempts. Enter the secret again to be sent a new one.",
+            clashes.length === 1
+              ? "One of these members is already registered with another team"
+              : `${clashes.length} of these members are already registered with another team`,
+          errors,
+          alreadyRegistered: clashes.map((clash) => ({
+            email: clash.email,
+            studentId: clash.studentId,
+            teamName: clash.teamName,
+            field: clash.field,
+          })),
         },
-        { status: 400 },
+        { status: 409 },
       );
     }
 
-    /* One use only. Losing this race means another request already spent the code, which
-       must not sign a second session in. */
-    if (!(await consumeOtpOnce(record.id))) {
-      return NextResponse.json(
-        { error: "That code has already been used. Enter the secret again." },
-        { status: 400 },
-      );
-    }
+    const updated = await updateTeam(id, input);
 
-    return await sessionResponse();
+    return NextResponse.json({
+      ok: true,
+      warnings,
+      team: {
+        id: updated.id,
+        reference: updated.reference,
+        teamName: updated.teamName,
+        tournamentName: updated.tournamentName,
+        gender: updated.gender,
+        gameId: updated.gameId,
+        gameName: updated.gameName,
+        leaderIndex: updated.leaderIndex,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
+        members: updated.members,
+      },
+    });
   } catch (error) {
-    console.error("[admin:verify:otp]", error);
-    return NextResponse.json({ error: "We could not verify that code. Try again." }, { status: 502 });
-  }
-}
+    if (error instanceof DuplicateValueError) {
+      return NextResponse.json(
+        { error: error.violation.message, fields: { [error.violation.field]: error.violation.message } },
+        { status: 409 },
+      );
+    }
 
-/** The only place a grand admin session cookie is set. */
-async function sessionResponse() {
-  const response = NextResponse.json(
-    { ok: true, stage: "session" as const, devSecret: await usingDevSecret() },
-    { headers: { "Cache-Control": "no-store" } },
-  );
-  const token = await createAdminSession();
-  if (token) response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
-  return response;
+    console.error("[admin:team:update]", error);
+    return NextResponse.json(
+      {
+        error: "Could not save those changes.",
+        detail: process.env.NODE_ENV !== "production" ? String(error) : undefined,
+      },
+      { status: 502 },
+    );
+  }
 }
