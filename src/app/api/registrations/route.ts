@@ -37,7 +37,7 @@ export async function GET(request: Request) {
 
   const verbose = process.env.NODE_ENV !== "production";
 
-  const database = databaseConfigured()
+  const database = await databaseConfigured()
     ? await registrationCounts()
         .then((counts) => ({ ok: true as const, ...counts }))
         .catch((error: unknown) => ({
