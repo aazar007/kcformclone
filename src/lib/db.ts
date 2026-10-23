@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { getEnv } from "./env";
 
 export class DatabaseNotConfiguredError extends Error {
   constructor() {
@@ -15,7 +16,7 @@ let cached: PrismaClient | null = null;
 export function getPrisma(): PrismaClient {
   if (cached) return cached;
 
-  const connectionString = process.env.DATABASE_URL?.trim();
+  const connectionString = getEnv("DATABASE_URL");
   if (!connectionString) throw new DatabaseNotConfiguredError();
 
   cached =
@@ -39,6 +40,5 @@ export function getPrisma(): PrismaClient {
 }
 
 export function databaseConfigured() {
-  return Boolean(process.env.DATABASE_URL?.trim());
+  return Boolean(getEnv("DATABASE_URL"));
 }
-//Hi
