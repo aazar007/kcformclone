@@ -629,7 +629,7 @@ export async function adminLogin(
   }
 
   recordFailure(key);
-  if (databaseConfigured()) await addAdminFailure(key, ADMIN_LOCKOUT_WINDOW_MS).catch(() => {});
+  if (await databaseConfigured()) await addAdminFailure(key, ADMIN_LOCKOUT_WINDOW_MS).catch(() => {});
   return { ok: false, retryAfterSeconds: 0 };
 }
 
