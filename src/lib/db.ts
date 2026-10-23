@@ -1,6 +1,5 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { getEnv } from "./env";
 
 /**
  * The Prisma client for the registration database.
@@ -22,6 +21,16 @@ const globalForPrisma = globalThis as unknown as { ksuPrisma?: PrismaClient };
 
 let cached: PrismaClient | null = null;
 
+const CLOUDFLARE_CONTEXT = Symbol.for("__cloudflare-context__");
+
+function getHyperdriveConnectionString(): string | undefined {
+  const context = (globalThis as Record<symbol, unknown>)[CLOUDFLARE_CONTEXT] as
+    | { env?: Record<string, unknown> }
+    | undefined;
+  const hyperdrive = context?.env?.HYPERDRIVE as { connectionString: string } | undefined;
+  return hyperdrive?.connectionString;
+}
+
 /**
  * The shared Prisma client.
  *
@@ -32,7 +41,7 @@ let cached: PrismaClient | null = null;
 export async function getPrisma(): Promise<PrismaClient> {
   if (cached) return cached;
 
-  const connectionString = (await getEnv("DATABASE_URL"))?.trim();
+  const connectionString = getHyperdriveConnectionString();
   if (!connectionString) throw new DatabaseNotConfiguredError();
 
   cached =
@@ -72,5 +81,5 @@ export async function getPrisma(): Promise<PrismaClient> {
 
 /** True when a database is configured — used to fail fast with a clear message. */
 export async function databaseConfigured(): Promise<boolean> {
-  return Boolean((await getEnv("DATABASE_URL"))?.trim());
+  return Boolean(getHyperdriveConnectionString());
 }
