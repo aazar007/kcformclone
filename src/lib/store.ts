@@ -9,7 +9,7 @@
  * `toPlayerRows` in `sheet-export.ts`.
  */
 
-import { Prisma } from "@prisma/client";
+import { Prisma } from "../../generated/prisma-client/client";
 import { getPrisma } from "./db";
 import type { OtpPurpose } from "./otp";
 
