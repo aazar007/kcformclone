@@ -52,16 +52,13 @@
   "images": {
     "binding": "IMAGES"
   },
-"unsafe": {
-  "bindings": [
-    {
-      "name": "WORKER_SELF_REFERENCE",
-      "type": "service",
-      "service": "ksucrownform",
-      "environment": "production"
-    }
-  ]
-}
+"services": [
+  {
+    "binding": "WORKER_SELF_REFERENCE",
+    "service": "ksucrownform",
+    "environment": "production"
+  }
+]
 
 
 }
