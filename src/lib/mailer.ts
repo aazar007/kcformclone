@@ -119,8 +119,31 @@ export async function mailerAllowsLogFallback(channel: MailChannel = "otp"): Pro
   return !(await mailerConfigured(channel)) && process.env.NODE_ENV !== "production";
 }
 
+/**
+ * Where a channel's settings come from, in order.
+ *
+ * Each channel's own prefix first, then the shared `SMTP_*`. When neither has a
+ * host, the confirmation channel borrows the verification-code account
+ * (`SMTP_OTP_*`): a deployment that only configured codes would otherwise
+ * register teams and never confirm them, which is exactly what happened on
+ * Cloudflare. The whole account is borrowed, never single fields, so a
+ * confirmation can't mix one account's host with another's password.
+ */
+async function sourcePrefix(channel: MailChannel): Promise<string> {
+  if ((await getEnv(`${CHANNEL_PREFIX[channel]}HOST`))?.trim()) return CHANNEL_PREFIX[channel];
+  if ((await getEnv("SMTP_HOST"))?.trim()) return "SMTP_";
+  if (channel === "confirmation" && (await getEnv(`${CHANNEL_PREFIX.otp}HOST`))?.trim()) {
+    return CHANNEL_PREFIX.otp;
+  }
+  return CHANNEL_PREFIX[channel];
+}
+
 /** A channel's own setting if it has one, otherwise the shared one. */
 async function read(channel: MailChannel, field: string): Promise<string> {
+  const prefix = await sourcePrefix(channel);
+  if (prefix === CHANNEL_PREFIX.otp && channel === "confirmation") {
+    return (await getEnv(`${prefix}${field}`))?.trim() ?? "";
+  }
   const specific = (await getEnv(`${CHANNEL_PREFIX[channel]}${field}`))?.trim();
   if (specific) return specific;
   return (await getEnv(`SMTP_${field}`))?.trim() ?? "";
@@ -134,6 +157,10 @@ async function read(channel: MailChannel, field: string): Promise<string> {
  * space is a typo worth correcting silently.
  */
 async function readSecret(channel: MailChannel, field: string): Promise<string> {
+  const prefix = await sourcePrefix(channel);
+  if (prefix === CHANNEL_PREFIX.otp && channel === "confirmation") {
+    return (await getEnv(`${prefix}${field}`)) ?? "";
+  }
   const specific = await getEnv(`${CHANNEL_PREFIX[channel]}${field}`);
   if (specific) return specific;
   return (await getEnv(`SMTP_${field}`)) ?? "";
