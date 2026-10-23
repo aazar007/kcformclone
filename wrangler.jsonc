@@ -1,0 +1,35 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "ksucrownform",
+  "main": ".open-next/worker.js",
+  "upload_source_maps": true,
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+
+  "hyperdrive": [
+    {
+      "binding": "database_binding",
+      "id": "a64c82db38e34ec4b89af519664a3e20"
+    }
+  ],
+  "images": {
+    "binding": "IMAGES"
+  },
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "WORKER_SELF_REFERENCE",
+        "type": "service",
+        "service": "ksucrownform",
+        "environment": "production"
+      }
+    ]
+  }
+}
