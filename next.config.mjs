@@ -1,4 +1,4 @@
-import { dirname } from "node:path";
+import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
@@ -145,6 +145,33 @@ const nextConfig = {
    * removes the guesswork.
    */
   outputFileTracingRoot: projectRoot,
+
+  /**
+   * Leave Prisma's query-engine WebAssembly to Wrangler.
+   *
+   * The Prisma client is generated for Cloudflare Workers (runtime "workerd"), which
+   * loads its engine with `import("./query_compiler_fast_bg.wasm?module")`. Workers
+   * only run WebAssembly that is uploaded as a precompiled module; compiling it at
+   * run time is refused. Webpack cannot parse that import, so it is kept as an
+   * external pointing at the generated file, and Wrangler bundles it as a module at
+   * deploy time (build and deploy run on the same machine, so the path holds).
+   */
+  webpack(config, { isServer }) {
+    if (isServer) {
+      const prismaWasm = path.join(
+        projectRoot,
+        "generated/prisma-client/internal/query_compiler_fast_bg.wasm",
+      );
+      config.externals = [
+        ...(Array.isArray(config.externals) ? config.externals : [config.externals]),
+        ({ request }, callback) =>
+          request?.endsWith("query_compiler_fast_bg.wasm?module")
+            ? callback(null, `import ${prismaWasm}?module`)
+            : callback(),
+      ];
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
