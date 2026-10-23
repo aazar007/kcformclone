@@ -26,6 +26,12 @@
   "images": {
     "binding": "IMAGES"
   },
+ "hyperdrive": [
+    {
+      "binding": "DATABASE_URL",
+      "id": "1ae455bb1fdb475693dc2b5fbe8625d1"
+    }
+  ],
 "services": [
   {
     "binding": "WORKER_SELF_REFERENCE",
