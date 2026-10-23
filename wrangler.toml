@@ -1,0 +1,25 @@
+name = "ksucrownform"
+main = ".open-next/worker.js"
+upload_source_maps = true
+compatibility_date = "2026-10-19"
+compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[observability]
+enabled = true
+
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "1ae455bb1fdb475693dc2b5fbe8625d1"
+localConnectionString = "postgres://USER:PASSWORD@HOST:PORT/DATABASE"
+
+[images]
+binding = "IMAGES"
+
+[[services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "ksucrownform"
+environment = "production"
