@@ -769,6 +769,25 @@ export interface AdminCredentialRecord {
  * Null is a normal state, not an error: the console is reachable with `ADMIN_SECRET`
  * alone, and that is how the first password gets set.
  */
+/**
+ * The stored password row, with failures **surfaced** rather than hidden.
+ *
+ * `getAdminCredential` below answers null for "no row" *and* for "could not read",
+ * because the console is how such a problem gets fixed and it must not fall over. The
+ * sign-in check cannot use it: with no stored password the deployment secret is accepted
+ * as a bootstrap credential, so a database outage that read as "no row" would silently
+ * promote `ADMIN_SECRET` back to a full credential — the exact behaviour that was
+ * removed. This version lets the caller tell the two apart and fail closed.
+ */
+export async function readAdminCredential(): Promise<AdminCredentialRecord | null> {
+  const prisma = await getPrisma();
+  const row = await prisma.adminCredential.findUnique({
+    where: { id: ADMIN_CREDENTIAL_ID },
+    select: { passwordHash: true, updatedAt: true, updatedVia: true },
+  });
+  return row ?? null;
+}
+
 export async function getAdminCredential(): Promise<AdminCredentialRecord | null> {
   try {
     const prisma = await getPrisma();
