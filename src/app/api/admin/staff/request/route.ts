@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isDatabaseUnavailable } from "@/lib/db";
 import { adminSecret } from "@/lib/admin-auth";
 import { isRelayRefusal, mailerAllowsLogFallback, mailerConfigured, sendOtpEmail } from "@/lib/mailer";
 import {
@@ -60,8 +61,27 @@ export async function POST(request: Request) {
   }
 
   /* The gate. An address with no live grant is refused here and no code is minted,
-     so the OTP table never holds a code for somebody who is not allowed in. */
-  const grant = await findLiveStaffAccess(email);
+     so the OTP table never holds a code for somebody who is not allowed in.
+
+     Guarded, because this is the one database call in the route that would otherwise sit
+     outside every `try`. When the database was unreachable it threw here, Next answered
+     with its own **HTML** 500 and an empty body, and the sign-in page had no error string
+     to show — so the organiser saw a generic "Something went wrong" and nothing anywhere
+     pointed at the database. A reachability problem should say it is one. */
+  let grant;
+  try {
+    grant = await findLiveStaffAccess(email);
+  } catch (error) {
+    console.error("[staff:request] could not check the grant", error);
+    return NextResponse.json(
+      {
+        error: isDatabaseUnavailable(error)
+          ? "The organiser database cannot be reached right now, so no sign-in code can be sent. This is a problem with the deployment, not with your address."
+          : "We could not check your access just now. Please try again shortly.",
+      },
+      { status: 503 },
+    );
+  }
   if (!grant) {
     return NextResponse.json(
       { error: "That email address does not have access to the console." },
