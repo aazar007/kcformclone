@@ -719,9 +719,20 @@ export function StepRoster({
                         inputMode="email"
                         dir="ltr"
                         value={member.email}
+                        /* **No address without a university.** The address is checked
+                           against the chosen institution's own domain, so with nothing
+                           chosen there is no rule to check it against — and whatever is
+                           typed would have to be rejected later, after a code had perhaps
+                           already been sent. Locking the field makes the order of the two
+                           answers obvious instead of explaining a failure afterwards. */
+                        disabled={!member.universityId}
                         invalid={Boolean(errors[`member.${index}.email`])}
                         autoComplete="off"
-                        placeholder={t("field.emailPlaceholder")}
+                        placeholder={
+                          member.universityId
+                            ? t("field.emailPlaceholder")
+                            : t("field.emailChooseUniversityFirst")
+                        }
                         onChange={(event) => setMember(index, { email: event.target.value })}
                         className="pe-24 font-mono text-[13px]"
                       />
@@ -733,6 +744,7 @@ export function StepRoster({
                     <EmailVerification
                       email={member.email}
                       verifiedEmail={member.verifiedEmail}
+                      disabled={!member.universityId}
                       onChange={(verifiedEmail, proof) =>
                         setMember(index, { verifiedEmail, emailProof: proof })
                       }
