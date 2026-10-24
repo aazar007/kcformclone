@@ -13,9 +13,29 @@
 // `prisma-client-js` compiles it from base64 at run time, which Workers refuse
 // ("Wasm code generation disallowed by embedder"). The client is generated into
 // generated/prisma-client (gitignored) by `postinstall` and imported by src/lib/db.ts.
+// Two clients from one schema, because one binary cannot serve both runtimes.
+//
+// `runtime = "workerd"` makes Prisma load its query compiler as
+// `query_compiler_fast_bg.wasm?module`. That `?module` suffix is a **Cloudflare
+// Workers** import convention: Wrangler resolves it, and nothing else can. On Node
+// — which is what Vercel, `next start`, and every `scripts/*.ts` run on — the import
+// fails and the client constructor throws
+//   "The loaded wasm module was unexpectedly `undefined` or `null` once loaded"
+// so every database call answers "cannot be reached", whatever `DATABASE_URL` says.
+// That is why editing the URL changed nothing.
+//
+// So both are generated, and `npm run prisma:node` / `npm run prisma:workers` copies
+// the one the current target needs into `generated/prisma-client`. The application
+// imports that single path and never has to know which flavour won.
 generator client {
   provider     = "prisma-client"
-  output       = "../generated/prisma-client"
+  output       = "../generated/prisma-client-node"
+  moduleFormat = "esm"
+}
+
+generator clientWorkers {
+  provider     = "prisma-client"
+  output       = "../generated/prisma-client-workers"
   runtime      = "workerd"
   moduleFormat = "esm"
 }
