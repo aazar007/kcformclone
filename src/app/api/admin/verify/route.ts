@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isDatabaseUnavailable } from "@/lib/db";
 import {
   NOT_CONFIGURED_MESSAGE,
   UNAUTHORISED_MESSAGE,
@@ -231,6 +232,17 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error("[admin:verify]", error);
-    return NextResponse.json({ error: "Something went wrong. Try again." }, { status: 500 });
+    /* A database that cannot be reached is the likeliest cause here — the OTP row cannot
+       be written — and "Something went wrong" sends the organiser looking at their
+       password instead of at the deployment. Say which it is. */
+    const unreachable = isDatabaseUnavailable(error);
+    return NextResponse.json(
+      {
+        error: unreachable
+          ? "The organiser database cannot be reached, so the sign-in code cannot be issued. This is a problem with the deployment, not with your password."
+          : "Something went wrong. Try again.",
+      },
+      { status: unreachable ? 503 : 500 },
+    );
   }
 }
