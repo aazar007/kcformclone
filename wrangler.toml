@@ -1,4 +1,4 @@
-name = "ksucrownform"
+name = "kcformclone"
 main = ".open-next/worker.js"
 upload_source_maps = true
 compatibility_date = "2026-10-19"
@@ -27,4 +27,4 @@ binding = "IMAGES"
 # OpenNext calls the Worker itself for cache revalidation, so this must match `name` above.
 [[services]]
 binding = "WORKER_SELF_REFERENCE"
-service = "ksucrownform"
+service = "kcformclone"

@@ -26,7 +26,8 @@
     "db:studio": "npm run prisma7 -- studio",
     "sheet:export": "tsx scripts/export-sheet.ts",
     "sheet:inspect": "tsx scripts/inspect-sheet.ts",
-    "build:cloud": "npm run prisma:workers && prisma contract emit && next build"
+    "build:cloud": "npm run prisma:workers && prisma contract emit && next build",
+    "build:workers": "npm run prisma:workers && prisma contract emit && next build"
   },
   "dependencies": {
     "@imgly/background-removal": "^1.7.0",
