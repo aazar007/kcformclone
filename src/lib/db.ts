@@ -119,3 +119,32 @@ export async function getPrisma(): Promise<PrismaClient> {
 export async function databaseConfigured(): Promise<boolean> {
   return Boolean(connectionString());
 }
+
+/**
+ * Whether a failure was "the database could not be reached" rather than anything else.
+ *
+ * This matters because of *how* it fails, not just what it says. An unreachable database
+ * throws outside the specific handling in some route handlers, so Next answers with its
+ * own **HTML** error page — HTTP 500 with an empty body. A client doing
+ * `response.json().catch(() => ({}))` then has nothing to show and falls back to a generic
+ * "Something went wrong", which is exactly what happened when a malformed `DATABASE_URL`
+ * was exported in the shell: the organiser was told to check their password while the
+ * deployment had no database.
+ *
+ * A malformed URL is included by hand: Prisma reports it as `P1013`, but the URL can also
+ * fail to parse before Prisma sees it, and that message is node's own `Invalid URL`.
+ */
+export function isDatabaseUnavailable(error: unknown): boolean {
+  const candidate = error as { code?: unknown; message?: unknown } | null;
+  const code = typeof candidate?.code === "string" ? candidate.code : "";
+  /* Unreachable, authentication, timeout, pool exhausted, and an invalid or
+     malformed connection string. */
+  if (["P1000", "P1001", "P1002", "P1008", "P1010", "P1013", "P1017", "P2024"].includes(code)) {
+    return true;
+  }
+
+  const message = typeof candidate?.message === "string" ? candidate.message : String(error ?? "");
+  return /Can't reach database server|Invalid URL|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|Connection terminated|Invalid `prisma\./i.test(
+    message,
+  );
+}
