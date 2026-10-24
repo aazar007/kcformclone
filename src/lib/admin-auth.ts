@@ -15,7 +15,7 @@ import {
   addAdminFailure,
   clearAdminFailures,
   countAllAdminFailures,
-  getAdminCredential,
+  readAdminCredential,
   recentAdminFailures,
 } from "@/lib/store";
 import { getEnv } from "@/lib/env";
@@ -47,36 +47,74 @@ export async function adminPepper(): Promise<Buffer> {
 }
 
 /**
- * Check a candidate against the stored password, then the deployment secret.
+ * Check a candidate against the grand admin's **stored password**.
  *
- * Two credentials, in this order, and both grant `owner`:
+ * **The hashed password is the credential.** `ADMIN_SECRET` is not a way in once a
+ * password exists — it is only the *bootstrap*: on a deployment that has never had a
+ * password set, the secret is accepted so that somebody can get in and set one. After
+ * that first setting, the console password is the only thing the sign-in form accepts.
  *
- * 1. **The password set from the console**, when one exists. This is the everyday one.
- * 2. **`ADMIN_SECRET`**, which is the root: it is what sets the first password, and what
- *    gets the organiser back in if the password is forgotten or the pepper is rotated.
- *    Without it, a lost password would mean surgery on the database to recover access to
- *    your own tournament.
+ * That ordering matters for what a leaked secret is worth. While `ADMIN_SECRET` was a
+ * permanent alternative, holding it meant owning the console for ever, and no password
+ * rotation could take that away — which defeated the point of having a password at all.
+ * Now the secret is worth exactly one thing: access to a deployment whose password has
+ * never been set.
  *
- * Deliberately *not* async-only for show: scrypt is slow by design, and doing it on the
- * thread that serves every other request would make one organiser's sign-in everyone's
- * delay.
+ * Three distinct outcomes, and the difference between them is deliberate:
+ *
+ * - **A password row exists and is valid** — only it decides. A wrong password is a wrong
+ *   password, even when the deployment secret would have matched.
+ * - **The row exists but is not in our format** — refused, and reported. Falling through
+ *   to the secret here would hide a broken credential behind one that still worked, which
+ *   is how a "wrong password" report becomes unfixable.
+ * - **No row at all** — bootstrap: the deployment secret is accepted, and a warning says a
+ *   password should be set. This is the fresh-deployment path, not a second credential.
+ *
+ * A database that is configured but **unreachable** is not "no row": it is refused. The
+ * alternative would silently promote the secret back to a full credential whenever the
+ * database hiccuped, which is the exact behaviour this function exists to remove.
+ *
+ * Deliberately async-only for show: scrypt is slow by design, and doing it on the thread
+ * that serves every other request would make one organiser's sign-in everyone's delay.
  */
 export async function verifyAdminCredentials(candidate: string): Promise<boolean> {
-  const stored = await getAdminCredential().catch(() => null);
+  /* No database configured at all — a fresh clone, or local development. There is nowhere
+     a password could be stored, so the secret is all there is. */
+  if (!(await databaseConfigured())) return checkEnvAdminSecret(candidate);
 
-  if (stored && isCredentialHash(stored.passwordHash)) {
-    if (await verifyCredential(stored.passwordHash, candidate, await adminPepper())) return true;
-  } else if (stored) {
-    /* A row that is not in our format — hand-edited, or written by an older build. Reported
-       rather than ignored, because silently falling through to the environment secret would
-       hide a broken credential behind one that still worked. */
-    console.error(
-      "[admin-auth] the stored grand admin password is not in a recognised format. " +
-        "Set it again from the console, or clear the AdminCredential row.",
-    );
+  let stored: Awaited<ReturnType<typeof readAdminCredential>>;
+  try {
+    /* `readAdminCredential`, not `getAdminCredential`: the latter answers null for a read
+       failure as well as for a missing row, and here those two mean opposite things —
+       "no row" is the bootstrap exception, "could not read" must refuse. */
+    stored = await readAdminCredential();
+  } catch (error) {
+    /* Configured but unreachable: fail closed. See the note above — falling through to the
+       secret would make an outage into a credential upgrade. */
+    console.error("[admin-auth] could not read the stored grand admin password", error);
+    return false;
   }
 
-  return checkEnvAdminSecret(candidate);
+  if (!stored) {
+    /* Bootstrap. Loud, because a deployment that stays this way is a deployment whose
+       console opens with a value that may be in a shell history or a chat message. */
+    console.warn(
+      "[admin-auth] no grand admin password is set, so ADMIN_SECRET is accepted as the " +
+        "bootstrap credential. Sign in and set a password from the console; after that " +
+        "ADMIN_SECRET no longer signs in.",
+    );
+    return checkEnvAdminSecret(candidate);
+  }
+
+  if (!isCredentialHash(stored.passwordHash)) {
+    console.error(
+      "[admin-auth] the stored grand admin password is not in a recognised format. " +
+        "Set it again with `npm run admin:reset`, or clear the AdminCredential row.",
+    );
+    return false;
+  }
+
+  return verifyCredential(stored.passwordHash, candidate, await adminPepper());
 }
 
 /**
@@ -304,30 +342,30 @@ function scryptDigest(password: string, salt: Buffer): Promise<Buffer> {
 }
 
 /**
- * Check a candidate secret against whatever `ADMIN_SECRET` holds.
+ * Check a candidate as the grand admin.
  *
- * Async because scrypt is deliberately slow: hashing on the main thread would block
- * every other request for the duration, which on a registration site is the difference
- * between one organiser waiting 80 ms and every entrant waiting 80 ms.
+ * Thin by design: the rule lives in `verifyAdminCredentials`, and this exists so callers do
+ * not each re-implement the empty-input guard. What it accepts is the **stored password**;
+ * `ADMIN_SECRET` is accepted only while no password has been set (bootstrap).
  *
- * The comparison is constant-time in all three forms, so a wrong secret cannot be
- * discovered a byte at a time.
+ * Async because scrypt is deliberately slow: hashing on the main thread would block every
+ * other request for the duration, which on a registration site is the difference between
+ * one organiser waiting 80 ms and every entrant waiting 80 ms.
  */
 export async function checkAdminSecret(candidate: string | null | undefined): Promise<boolean> {
   if (typeof candidate !== "string" || !candidate.trim()) return false;
-  /* The password set from the console comes first because it is the everyday credential;
-     `ADMIN_SECRET` is the root and is checked second. Both grant `owner`. */
   return verifyAdminCredentials(candidate.trim());
 }
 
 /**
- * Check a candidate against `ADMIN_SECRET` alone — the root credential.
+ * Check a candidate against `ADMIN_SECRET` alone.
  *
- * Extracted when the console-managed password arrived, so the two credentials can be told
- * apart. It is checked *second*, but it is the one that must never stop working: it is how
- * the first password is set, and how access is recovered if the password is lost.
+ * **Bootstrap only.** This is reached in exactly two situations, both meaning "there is no
+ * stored password to check": a deployment that has never had one set, and a machine with no
+ * database configured at all. It is never consulted when a password row exists — that is the
+ * whole point of the change; see `verifyAdminCredentials`.
  *
- * Not exported: callers should use `checkAdminSecret`, which knows about both.
+ * Not exported: callers should use `checkAdminSecret`, which applies the rule.
  */
 async function checkEnvAdminSecret(candidate: string | null | undefined): Promise<boolean> {
   const expected = await adminSecret();
