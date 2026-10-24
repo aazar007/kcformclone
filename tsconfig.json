@@ -22,4 +22,4 @@
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "scripts/self-test.mts"],
   "exclude": ["node_modules"]
 }
-// Hi, how
+// Hi, how are
