@@ -634,9 +634,17 @@ export function validateDraft(
     const email = member.email.trim();
     if (!email) {
       errors[`${prefix}.email`] = "Required";
+    } else if (!chosen) {
+      /* **No address without a university.** The address is checked against the domain of
+         the institution on this row, so without one there is no rule to check it against —
+         and any address would pass. Requiring the choice first is what makes "strict on its
+         own domain" true rather than decorative. The form also disables the field until a
+         university is picked; this is the server-side half of the same rule. */
+      errors[`${prefix}.email`] =
+        "Choose this member's university first — the address must be its domain";
     } else if (!EMAIL_PATTERN.test(email)) {
       errors[`${prefix}.email`] = "Enter a valid email address";
-    } else if (chosen && !emailMatchesUniversity(email, chosen)) {
+    } else if (!emailMatchesUniversity(email, chosen)) {
       /* Before the verification check, deliberately. The other order told a captain to
          verify an address that could never be accepted — which sends a real code to the
          wrong mailbox and only then refuses the entry, at the end of the form. Saying it
@@ -979,7 +987,13 @@ export function validatePayload(
       const email = typeof member.email === "string" ? member.email.trim().toLowerCase() : "";
       if (!EMAIL_PATTERN.test(email)) {
         errors[`member.${index}.email`] = "Enter a valid email address";
-      } else if (university && !emailMatchesUniversity(email, university)) {
+      } else if (!university) {
+        /* No university, no domain to check against — so the address is refused rather than
+           accepted unchecked. The browser disables the field until a university is chosen;
+           this is the same rule for a request that never went near the browser. */
+        errors[`member.${index}.email`] =
+          "Choose the member's university first — the address must be its domain";
+      } else if (!emailMatchesUniversity(email, university)) {
         /* The server's copy of the same strict rule. The browser already refuses this,
            but the API is reachable without the browser, and a roster that names one
            university must not carry another institution's address. */
