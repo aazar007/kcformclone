@@ -276,6 +276,9 @@ export const EN = {
   "field.emailHint":
     "Student addresses look like 441313142@student.ksu.edu.sa — the format each university issues. Every player confirms theirs by code.",
   "field.emailPlaceholder": "4XXXXXXX@student.ksu.edu.sa",
+  /* Shown where the placeholder would be, and as the disabled "send code" tooltip,
+     while no university is chosen. */
+  "field.emailChooseUniversityFirst": "Choose a university first",
   "field.studentId": "Student ID",
   "field.studentIdHint": "4–20 numbers",
   "field.studentIdCoachHint": "Optional for coaching staff.",
@@ -635,6 +638,7 @@ export const AR: Record<MessageKey, string> = {
   "field.emailHint":
     "بريد الطالب بهذا الشكل 441313142@student.ksu.edu.sa ويؤكّد كل لاعب بريده برمز.",
   "field.emailPlaceholder": "44XXXXXXX@student.ksu.edu.sa",
+  "field.emailChooseUniversityFirst": "اختر الجامعة أولًا",
   "field.studentId": "الرقم الجامعي",
   "field.studentIdHint": "من ٤ إلى ٢٠ رقمًا فقط",
   "field.studentIdCoachHint": "اختياري للمدرب.",
@@ -924,6 +928,10 @@ const MESSAGE_AR: Record<string, string> = {
   "Duplicate game tag": "معرّف اللعبة مكرر",
   "Select this member's university": "اختر جامعة هذا اللاعب",
   "Select a university from the list": "اختر جامعة من القائمة",
+  "Choose this member's university first — the address must be its domain":
+    "اختر جامعة هذا اللاعب أولًا — يجب أن يكون البريد على نطاقها",
+  "Choose the member's university first — the address must be its domain":
+    "اختر جامعة اللاعب أولًا — يجب أن يكون البريد على نطاقها",
   "Invalid university": "جامعة غير صالحة",
   "University is outside the allowed provinces": "الجامعة خارج المناطق المسموح بها",
   "This university is not available for this division": "هذه الجامعة غير متاحة في هذا القسم",
