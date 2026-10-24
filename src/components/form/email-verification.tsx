@@ -23,10 +23,20 @@ import { useLanguage } from "./language-provider";
 export function EmailVerification({
   email,
   verifiedEmail,
+  disabled = false,
   onChange,
 }: {
   email: string;
   verifiedEmail: string;
+  /**
+   * True while the member has no university chosen.
+   *
+   * The address has to belong to that institution's own domain, so a code sent before the
+   * choice is made is a code sent to an address that may have to be replaced — and email is
+   * the slowest thing in this flow to redo. Disabled rather than merely rejected keeps the
+   * order of the two answers obvious.
+   */
+  disabled?: boolean;
   onChange: (verifiedEmail: string, proof: string) => void;
 }) {
   const [phase, setPhase] = React.useState<"idle" | "code">("idle");
@@ -182,8 +192,9 @@ export function EmailVerification({
           type="button"
           size="sm"
           variant="outline"
-          disabled={!usable || busy}
+          disabled={!usable || busy || disabled}
           onClick={() => void requestCode()}
+          title={disabled ? t("field.emailChooseUniversityFirst") : undefined}
         >
           {busy ? <Loader2 className="size-3.5 animate-spin" /> : <MailCheck className="size-3.5" />}
           {/* Honest label: after a relay refusal, retrying is a long shot rather
