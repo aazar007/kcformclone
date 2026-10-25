@@ -111,6 +111,13 @@ export function RulebookReader({
           const viewport = page.getViewport({ scale: (columnWidth * ratio) / base.width });
 
           const canvas = document.createElement("canvas");
+          /* Always left-to-right, whatever the page language is. A canvas's text
+             direction defaults to "inherit", so on the Arabic page (dir="rtl") every
+             glyph pdf.js places was drawn right-aligned from its own position — letters
+             pulled apart and words scrambled. pdf.js positions each glyph itself in PDF
+             (left-to-right) coordinates; the Arabic in the document is already shaped
+             and ordered, so LTR is correct for every language. */
+          canvas.dir = "ltr";
           canvas.width = Math.floor(viewport.width);
           canvas.height = Math.floor(viewport.height);
           canvas.className = "block w-full rounded-xl bg-white shadow-lg";
@@ -120,6 +127,9 @@ export function RulebookReader({
 
           const context = canvas.getContext("2d");
           if (!context) throw new Error("This browser cannot draw the rulebook.");
+          /* Belt and braces for browsers that resolve the context's direction before the
+             attribute takes effect. */
+          context.direction = "ltr";
           await page.render({ canvasContext: context, viewport }).promise;
         }
 
@@ -191,7 +201,8 @@ export function RulebookReader({
         aria-label={title}
         className="hud-scroll max-h-[70vh] min-h-[420px] overflow-y-auto rounded-xl border border-[rgba(148,196,208,0.18)] bg-wall-950 p-3 focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:outline-none"
       >
-        <div ref={pagesRef} className="space-y-3" />
+        {/* LTR for the same reason as each canvas: pages are PDF drawings, not page text. */}
+        <div ref={pagesRef} dir="ltr" className="space-y-3" />
 
         {status === "loading" && (
           <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 text-ash">
