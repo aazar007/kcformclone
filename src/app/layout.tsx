@@ -64,6 +64,10 @@ export const metadata: Metadata = {
   title: "KSU Crown · Team Registration",
   description:
     "Register your team for the KSU Crown esports championship — squad details, university verification and match-day contacts.",
+  /* The tab icons come from favicon.ico / icon.png in this folder. The iOS icon is a route
+     (see apple-touch-icon.png/route.ts) because it must differ by browser: Safari gets a
+     background, every other browser a transparent crown. */
+  icons: { apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }] },
 };
 
 export const viewport: Viewport = {
