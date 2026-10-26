@@ -67,7 +67,13 @@ export const metadata: Metadata = {
   /* The tab icons come from favicon.ico / icon.png in this folder. The iOS icon is a route
      (see apple-touch-icon.png/route.ts) because it must differ by browser: Safari gets a
      background, every other browser a transparent crown. */
-  icons: { apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }] },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {
