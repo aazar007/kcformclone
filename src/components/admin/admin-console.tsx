@@ -13,11 +13,13 @@ import {
   Lock,
   LogOut,
   MapPin,
+  Radio,
   RotateCcw,
   Save,
   Settings,
   ShieldAlert,
   Building2,
+  Handshake,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -31,6 +33,8 @@ import { GamesSection } from "./games-section";
 import { RequirementsSection } from "./requirements-section";
 import { ProvincesSection } from "./provinces-section";
 import { UniversitiesSection } from "./universities-section";
+import { SponsorsSection } from "./sponsors-section";
+import { LiveSection } from "./live-section";
 import { RegistrationsSection } from "./registrations-section";
 import { RulebookSection } from "./rulebook-section";
 import { StaffSection } from "./staff-section";
@@ -73,6 +77,15 @@ const TABS = [
   { id: "requirements", label: "Requirements", icon: ListChecks, ownerOnly: false },
   { id: "provinces", label: "Provinces", icon: MapPin, ownerOnly: false },
   { id: "universities", label: "Universities", icon: Building2, ownerOnly: false },
+  /* Sponsors sit beside General rather than under it: the list is edited by adding and
+     removing rows, which does not fit the one-field-per-setting shape General has. */
+  { id: "sponsors", label: "Sponsors", icon: Handshake, ownerOnly: false },
+  /* The live announcement has its own tab for the same reason the sponsors do: it is a
+     switch plus a list of links, which does not fit General's one-setting-per-row shape.
+     It is also the control an organiser reaches for in a hurry when play starts, so it is
+     shared: `PUT /api/config` accepts any signed-in admin, and whoever is running the
+     tournament is the person who knows exactly when it goes live. */
+  { id: "live", label: "Live", icon: Radio, ownerOnly: false },
   { id: "rulebook", label: "Rulebook", icon: FileText, ownerOnly: false },
   { id: "staff", label: "Staff access", icon: KeyRound, ownerOnly: true },
   { id: "password", label: "Password", icon: Lock, ownerOnly: true },
@@ -87,6 +100,7 @@ export function AdminConsole({
   initialConfig,
   configSource,
   initialLogoVersions,
+  initialSponsorLogoVersions = {},
   mode = "owner",
   sheetUrl = null,
 }: {
@@ -94,6 +108,8 @@ export function AdminConsole({
   configSource: "default" | "stored";
   /** Game id → cache-busting version, for the games that have a logo. */
   initialLogoVersions: Record<string, number>;
+  /** Sponsor id → cache-busting version, for the sponsors that have a logo. */
+  initialSponsorLogoVersions?: Record<string, number>;
   /**
    * The spreadsheet's own address, resolved on the server, or null when it is not
    * configured.
@@ -135,6 +151,8 @@ export function AdminConsole({
   const [saved, setSaved] = React.useState(initialConfig);
   const [logoVersions, setLogoVersions] =
     React.useState<Record<string, number>>(initialLogoVersions);
+  const [sponsorLogoVersions, setSponsorLogoVersions] =
+    React.useState<Record<string, number>>(initialSponsorLogoVersions);
   /* Opened where this door's reader can work. A staff visitor landing on a settings
      section first would be bounced off it a moment later by the effect below, which
      reads as the console flickering rather than as a restriction. */
@@ -293,7 +311,7 @@ export function AdminConsole({
     <div className="relative min-h-screen">
       <WaveWall />
 
-      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:py-10">
+      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:py-10 3xl:max-w-7xl 4xl:max-w-[96rem]">
         {/* ---------------------------- Header ---------------------------- */}
         <header className="panel mb-6 rounded-3xl p-5 sm:p-6">
           <div className="flex flex-wrap items-center gap-5">
@@ -301,7 +319,7 @@ export function AdminConsole({
 
             <div className="ml-auto flex flex-wrap items-center gap-2">
               {devSecret && (
-                <span className="flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2.5 py-1.5 text-[10px] font-bold tracking-wide text-amber-300 uppercase">
+                <span className="flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2.5 py-1.5 text-[0.625rem] font-bold tracking-wide text-amber-300 uppercase">
                   <ShieldAlert className="size-3.5" />
                   Development code
                 </span>
@@ -310,7 +328,7 @@ export function AdminConsole({
                 {configSource === "stored" ? "Saved settings" : "Built-in defaults"}
               </Pill>
               <Button asChild size="sm" variant="outline">
-                <Link href="/">View form</Link>
+                <Link href="/?tab=register">View form</Link>
               </Button>
               <Button type="button" size="sm" variant="ghost" onClick={lock}>
                 <LogOut className="size-3.5" />
@@ -320,7 +338,7 @@ export function AdminConsole({
           </div>
 
           {devSecret && (
-            <p className="mt-4 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/8 p-3 text-[11px] leading-relaxed text-amber-100/90">
+            <p className="mt-4 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/8 p-3 text-[0.6875rem] leading-relaxed text-amber-100/90">
               <AlertTriangle className="mt-px size-3.5 shrink-0 text-amber-300" />
               <span>
                 The development code is in use because <span className="font-mono">ADMIN_SECRET</span>{" "}
@@ -333,7 +351,7 @@ export function AdminConsole({
               would tell an organiser that the step they asked for is not running — and
               because the sign-in no longer refuses, by design. */}
           {role === "owner" && twoStep === false && (
-            <p className="mt-4 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/8 p-3 text-[11px] leading-relaxed text-amber-100/90">
+            <p className="mt-4 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/8 p-3 text-[0.6875rem] leading-relaxed text-amber-100/90">
               <AlertTriangle className="mt-px size-3.5 shrink-0 text-amber-300" />
               <span>
                 <strong className="text-amber-100">No emailed confirmation step.</strong>{" "}
@@ -346,17 +364,17 @@ export function AdminConsole({
           )}
 
           {role === "owner" ? (
-            <p className="mt-4 text-[11px] leading-relaxed text-ash">
+            <p className="mt-4 text-[0.6875rem] leading-relaxed text-ash">
               Changes are stored in the registration database and picked up by the public form on its
               next page load. The Google Sheet is now an optional export, not a source of truth.
             </p>
           ) : (
-            <p className="mt-4 flex flex-wrap items-center gap-2 text-[11px] leading-relaxed text-ash">
+            <p className="mt-4 flex flex-wrap items-center gap-2 text-[0.6875rem] leading-relaxed text-ash">
               <Pill tone="brand">Staff access</Pill>
               <span>
                 Signed in as <span className="font-mono text-snow" dir="ltr">{staffEmail}</span> —
-                you can work on the registrations. The tournament settings, the rulebook and who else
-                has access are the grand admin&apos;s.
+                you can work on the registrations and the tournament settings. Granting access
+                and the grand admin&apos;s password stay with the grand admin.
               </span>
             </p>
           )}
@@ -377,7 +395,7 @@ export function AdminConsole({
                   "flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold tracking-wide transition-colors",
                   active
                     ? "border-brand/60 bg-brand/12 text-brand"
-                    : "border-[rgba(148,196,208,0.16)] text-ash hover:border-brand/40 hover:text-snow",
+                    : "border-[rgba(79, 182, 208,0.16)] text-ash hover:border-brand/40 hover:text-snow",
                 )}
               >
                 <Icon className="size-3.5" />
@@ -389,7 +407,13 @@ export function AdminConsole({
 
         {/* ---------------------------- Content ---------------------------- */}
         <main className="pb-28">
-          {tab === "general" && <GeneralSection {...sectionProps} />}
+          {tab === "general" && (
+            <GeneralSection
+              {...sectionProps}
+              logoVersions={sponsorLogoVersions}
+              onLogoVersionsChange={setSponsorLogoVersions}
+            />
+          )}
           {tab === "games" && (
             <GamesSection
               {...sectionProps}
@@ -401,6 +425,20 @@ export function AdminConsole({
           {tab === "requirements" && <RequirementsSection {...sectionProps} />}
           {tab === "provinces" && <ProvincesSection {...sectionProps} />}
           {tab === "universities" && <UniversitiesSection {...sectionProps} />}
+          {tab === "sponsors" && (
+            <SponsorsSection
+              {...sectionProps}
+              logoVersions={sponsorLogoVersions}
+              onLogoVersionsChange={setSponsorLogoVersions}
+            />
+          )}
+          {tab === "live" && (
+            <LiveSection
+              {...sectionProps}
+              logoVersions={sponsorLogoVersions}
+              onLogoVersionsChange={setSponsorLogoVersions}
+            />
+          )}
           {tab === "rulebook" && <RulebookSection config={config} />}
           {tab === "staff" && <StaffSection />}
           {tab === "password" && <PasswordSection />}
@@ -411,16 +449,22 @@ export function AdminConsole({
       </div>
 
       {/* --------------------------- Save bar --------------------------- */}
-      {/* Only the grand admin has anything to save: every section that uses this bar
-          is owner-only, and a Save press from a staff session would be refused by the
-          API and sign them out. */}
-      {role === "owner" && tab !== "registrations" && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[rgba(148,196,208,0.16)] bg-wall-900/92 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
+      {/* Every section that uses this bar writes the tournament config, and
+          `PUT /api/config` accepts any signed-in admin — so the bar is shown to staff on
+          **every** tab they can open, including Registrations. It used to be owner-only,
+          which left a staff member with editable settings and no way to store them; the
+          next version hid it on the Registrations tab, which is where staff land by
+          default, so a staff member could look at the console and never see a save
+          button at all. Keeping it pinned removes that guesswork: whatever tab they are
+          on, the control is in the same place. The owner-only tabs (Staff access,
+          Password) keep their own forms and never reach this bar. */}
+      {!TABS.find((entry) => entry.id === tab)?.ownerOnly && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[rgba(79, 182, 208,0.16)] bg-wall-900/92 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6 3xl:max-w-7xl 4xl:max-w-[96rem]">
             {notice ? (
               <span
                 className={cn(
-                  "flex items-center gap-2 text-[11px]",
+                  "flex items-center gap-2 text-[0.6875rem]",
                   notice.tone === "ok" ? "text-brand" : "text-danger",
                 )}
               >
@@ -428,12 +472,12 @@ export function AdminConsole({
                 {notice.text}
               </span>
             ) : dirty ? (
-              <span className="flex items-center gap-2 text-[11px] text-amber-300">
+              <span className="flex items-center gap-2 text-[0.6875rem] text-amber-300">
                 <AlertTriangle className="size-3.5" />
                 Unsaved changes
               </span>
             ) : (
-              <span className="flex items-center gap-2 text-[11px] text-ash">
+              <span className="flex items-center gap-2 text-[0.6875rem] text-ash">
                 <Check className="size-3.5" />
                 Everything is saved
               </span>

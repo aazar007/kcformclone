@@ -12,10 +12,13 @@ import { useLanguage } from "./language-provider";
 /**
  * Proving a roster member owns the address they typed.
  *
- * Every player must be verified, so the check lives next to the field rather than
- * behind a separate step: the captain types an address, presses "Send code",
- * reads the mail and types six digits. Once it matches, the API hands back a
- * signed receipt that travels with the submission.
+ * Only the team leader verifies during registration, so this control is shown on
+ * that row alone. The leader types an address, presses "Send code", reads the mail
+ * and enters six digits. Once it matches, the API hands back a signed receipt that
+ * travels with the submission.
+ *
+ * Every other member is emailed a confirmation link after submission instead — see
+ * `sendMemberConfirmationRequests`.
  *
  * Editing the address afterwards clears the verification, because the receipt
  * names the address it was issued for.
@@ -24,6 +27,7 @@ export function EmailVerification({
   email,
   verifiedEmail,
   disabled = false,
+  ready = true,
   onChange,
 }: {
   email: string;
@@ -37,6 +41,15 @@ export function EmailVerification({
    * order of the two answers obvious.
    */
   disabled?: boolean;
+  /**
+   * Whether the typed address is complete and acceptable for this member.
+   *
+   * The send button appears only once there is something to verify. A field that
+   * offered "send code" after the first keystroke read as the form rejecting what was
+   * still being typed; a button that enabled the moment a university was picked read
+   * as the form asking for a code to an empty address.
+   */
+  ready?: boolean;
   onChange: (verifiedEmail: string, proof: string) => void;
 }) {
   const [phase, setPhase] = React.useState<"idle" | "code">("idle");
@@ -52,10 +65,19 @@ export function EmailVerification({
    * button stays (a throttle can lift) but it stops promising that it will work.
    */
   const [deliveryFailed, setDeliveryFailed] = React.useState(false);
+  /**
+   * The server says this address already belongs to a registration.
+   *
+   * Set from the *request* response, which is the first moment the question can be
+   * answered — see the note in `/api/otp/request`. Nothing is sent when it is true, so the
+   * send button is replaced rather than merely reporting a failure: pressing it again could
+   * not possibly work.
+   */
+  const [alreadyRegistered, setAlreadyRegistered] = React.useState(false);
   const { t, message, language } = useLanguage();
 
   const normalised = email.trim().toLowerCase();
-  const usable = EMAIL_PATTERN.test(normalised);
+  const usable = ready && EMAIL_PATTERN.test(normalised);
   const verified = normalised.length > 0 && verifiedEmail.trim().toLowerCase() === normalised;
 
   // A different address is a different check.
@@ -65,6 +87,7 @@ export function EmailVerification({
     setError(null);
     setNotice(null);
     setDeliveryFailed(false);
+    setAlreadyRegistered(false);
   }, [normalised]);
 
   const requestCode = async () => {
@@ -81,9 +104,16 @@ export function EmailVerification({
       const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
 
       if (!response.ok) {
-        setError(
-          typeof payload.error === "string" ? message(payload.error) : t("verify.couldNotSend"),
-        );
+        /* One sentence, in one place. This case has its own callout below, so the same
+           message must not also be printed as the generic red line — the panel said it
+           twice, once in bold and once directly under it. */
+        const registered = payload.alreadyRegistered === true;
+        setAlreadyRegistered(registered);
+        if (!registered) {
+          setError(
+            typeof payload.error === "string" ? message(payload.error) : t("verify.couldNotSend"),
+          );
+        }
         setDeliveryFailed(payload.deliveryFailed === true);
         return;
       }
@@ -166,17 +196,17 @@ export function EmailVerification({
   if (verified) {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <span className="flex items-center gap-1.5 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1.5 text-[11px] font-bold tracking-wide text-emerald-300">
+        <span className="flex items-center gap-1.5 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1.5 text-[0.6875rem] font-bold tracking-wide text-emerald-300">
           <ShieldCheck className="size-3.5" />
           {t("verify.confirmed")}
         </span>
-        <span className="text-[11px] text-ash" dir="ltr">
+        <span className="text-[0.6875rem] text-ash" dir="ltr">
           {normalised}
         </span>
         <button
           type="button"
           onClick={() => onChange("", "")}
-          className="ms-auto flex items-center gap-1 text-[11px] text-ash underline-offset-2 transition-colors hover:text-brand hover:underline"
+          className="ms-auto flex items-center gap-1 text-[0.6875rem] text-ash underline-offset-2 transition-colors hover:text-brand hover:underline"
         >
           <PencilLine className="size-3" />
           {t("verify.useDifferent")}
@@ -185,9 +215,54 @@ export function EmailVerification({
     );
   }
 
+  /*
+   * **Nothing is asked of a half-typed address.**
+   *
+   * This panel used to render its button — and a line reading "enter a valid university
+   * email address first" — from the moment the field had focus. So the first keystroke of
+   * an address was met with a demand to verify it, which is both wrong (there is nothing
+   * to verify yet) and discouraging: it reads as the form rejecting what is still being
+   * typed.
+   *
+   * It now stays visible but disabled until the address is complete and belongs to the
+   * selected institution. That is the first moment the request means anything, and a
+   * disabled button explains the order of work without turning the field red.
+   */
+  if (!usable) {
+    /* Nothing typed yet: leave the row quiet rather than showing a disabled button
+       above an empty field. Once there is a partial address, the disabled button
+       makes it clear what finishing it will unlock. */
+    if (!normalised) return null;
+
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" size="sm" variant="outline" disabled>
+          <MailCheck className="size-3.5" />
+          {t("verify.send")}
+        </Button>
+        <span className="text-[0.6875rem] text-ash">{t("verify.finishEmailFirst")}</span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-2">
-      {phase === "idle" ? (
+      {alreadyRegistered ? (
+        /* The answer arrived before a code was wasted on it, which is the whole point of
+           asking the server first. There is nothing to send and nothing to retry, so the
+           button is replaced by what the person actually needs: the door they came in by. */
+        <div className="flex items-start gap-2.5 rounded-xl border border-amber-400/50 bg-amber-400/12 px-3 py-3 text-start leading-relaxed">
+          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-amber-300" />
+          <span className="min-w-0">
+            <strong className="block text-[0.8125rem] font-bold text-amber-100">
+              {message("That email address is already registered")}
+            </strong>
+            <span className="text-[0.75rem] text-amber-100/80">
+              {t("verify.alreadyRegisteredHint")}
+            </span>
+          </span>
+        </div>
+      ) : phase === "idle" ? (
         <Button
           type="button"
           size="sm"
@@ -227,7 +302,7 @@ export function EmailVerification({
                 void submitCode();
               }
             }}
-            className="w-32 font-mono text-[13px] tracking-[0.2em]"
+            className="w-32 font-mono text-[0.8125rem] tracking-[0.2em]"
           />
           <Button
             type="button"
@@ -250,31 +325,35 @@ export function EmailVerification({
         </div>
       )}
 
-      {error && <p className="text-[11px] text-danger">{error}</p>}
+      {error && <p className="text-[0.6875rem] text-danger">{error}</p>}
       {!error && notice && (
-        <p className={cn("text-[11px]", notice.startsWith("SMTP") ? "text-amber-300" : "text-ash")}>
+        <p className={cn("text-[0.6875rem]", notice.startsWith("SMTP") ? "text-amber-300" : "text-ash")}>
           {notice}
         </p>
       )}
-
       {/*
        * The single most common reason a code "never arrives". University mail
        * filters file these aggressively, and a student who finds an empty inbox
        * assumes the site is broken and gives up — so the advice is shown where
        * they are already waiting, not buried in a help page.
+       *
+       * It is deliberately louder than the surrounding help text: at 11px in a thin
+       * amber line it read as fine print and was skimmed past, which defeats the
+       * point of putting it here at all.
        */}
       {phase === "code" && (
-        <p className="flex items-start gap-1.5 rounded-lg border border-amber-400/30 bg-amber-400/8 px-2.5 py-2 text-[11px] leading-relaxed text-amber-200/90">
-          <MailCheck className="mt-px size-3.5 shrink-0" />
-          <span>
-            {t("verify.notThere")}{" "}
-            <strong className="font-bold">{t("verify.checkSpam")}</strong> {t("verify.spamBody")}
+        <div className="flex items-start gap-2.5 rounded-xl border border-amber-400/50 bg-amber-400/12 px-3 py-3 text-start leading-relaxed">
+          <MailCheck className="mt-0.5 size-4 shrink-0 text-amber-300" />
+          <span className="min-w-0">
+            <span className="block text-[0.6875rem] tracking-wider text-amber-200/75">
+              {t("verify.notThere")}
+            </span>
+            <strong className="text-[0.8125rem] font-bold text-amber-100">
+              {t("verify.checkSpam")}
+            </strong>{" "}
+            <span className="text-[0.75rem] text-amber-100/80">{t("verify.spamBody")}</span>
           </span>
-        </p>
-      )}
-
-      {!error && !notice && phase === "idle" && !usable && (
-        <p className="text-[11px] text-ash/70">{t("verify.enterValidFirst")}</p>
+        </div>
       )}
     </div>
   );

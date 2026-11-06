@@ -10,7 +10,6 @@ import {
   DEFAULT_MAX_SUBSTITUTES,
   MAX_ROSTER_LIMIT,
   MAX_SUPPORT_LIMIT,
-  slugify,
   type GameDefinition,
 } from "@/lib/tournament";
 import { LOGO_SIZE } from "@/lib/image";
@@ -20,40 +19,63 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { SectionCard, Setting, Pill, EmptyNote } from "./controls";
 import type { SectionProps } from "./general-section";
 
-/** A blank game, pre-filled so the organiser only has to type the name. */
+/**
+ * A blank game, pre-filled so the organiser only has to type the name.
+ *
+ * **The id is assigned here, not derived from the name.** It used to be `""`, which meant
+ * `GameLogo` rendered a dead placeholder — "Save the game with a name before adding a
+ * logo" — until the organiser typed in the Name field. A logo could not be uploaded for a
+ * game that had just been added, which is exactly how that was reported: a dashed box with
+ * no button in it.
+ *
+ * Assigning it up front makes the upload control live immediately, and it never changes
+ * afterwards — see `withUniqueId` for why that matters.
+ */
 function newGame(existing: GameDefinition[]): GameDefinition {
   return {
-    id: "",
+    id: freshGameId(existing),
     name: "",
     format: "5v5",
     squadSize: 5,
     maxSubstitutes: DEFAULT_MAX_SUBSTITUTES,
     maxCoaches: DEFAULT_MAX_COACHES,
+    /* Left blank on purpose: a prize the organisers have not decided on must not be
+       invented for them, and the landing card omits the line when it is empty. */
+    prizePool: "",
     accent: ACCENT_PRESETS[existing.length % ACCENT_PRESETS.length].accent,
     divisions: ["male", "female"],
   };
 }
 
+/** An id nothing else is using, and one that will never be re-derived from anything. */
+function freshGameId(existing: GameDefinition[]): string {
+  const taken = new Set(existing.map((game) => game.id));
+  let id = "";
+  do {
+    id = `game-${Math.random().toString(36).slice(2, 10)}`;
+  } while (taken.has(id));
+  return id;
+}
+
 /**
- * Make sure a newly named game gets an id that does not collide with the others.
+ * Make sure a game's id is present and unique — and never rewrite one that already is.
  *
- * An id that already exists is kept, even when the game is renamed: logos are
- * stored against the id, and registrations record it, so re-deriving it from the
- * name would orphan both.
+ * **It used to derive the id from the name, on every keystroke**, because `replace()` runs
+ * this over the whole list as the organiser types. Typing the first letter of "Call of Duty"
+ * set the id to `c`, and the short-circuit below then froze it there for ever — the live
+ * config really does contain `id: "c", name: "Call of Duty: Black Ops"`. Logos are stored
+ * against the id and registrations record it, so an id that moves under an upload orphans
+ * both.
+ *
+ * A game that already has an id keeps it, whatever it looks like: `rocket-league`, `c` or
+ * `game-a1b2c3d4`. Renaming is therefore free, and re-slugging can no longer detach a logo.
+ * Only a missing or colliding id is replaced, and then with a fresh opaque one rather than a
+ * name-derived one.
  */
 function withUniqueId(game: GameDefinition, index: number, all: GameDefinition[]): GameDefinition {
   const taken = new Set(all.filter((_, i) => i !== index).map((entry) => entry.id));
   if (game.id && !taken.has(game.id)) return game;
-
-  const base = slugify(game.name) || `game-${index + 1}`;
-  let id = base;
-  let suffix = 2;
-  while (taken.has(id)) {
-    id = `${base}-${suffix}`;
-    suffix += 1;
-  }
-
-  return { ...game, id };
+  return { ...game, id: freshGameId(all.filter((_, i) => i !== index)) };
 }
 
 function DivisionToggle({
@@ -69,7 +91,7 @@ function DivisionToggle({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-[10px] font-bold tracking-[0.14em] text-ash uppercase">Open to</span>
+      <span className="text-[0.625rem] font-bold tracking-[0.14em] text-ash uppercase">Open to</span>
       {divisions.map((gender) => {
         const enabled = game.divisions.includes(gender);
         return (
@@ -79,7 +101,7 @@ function DivisionToggle({
               "flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-colors",
               enabled
                 ? "border-brand/50 bg-brand/10 text-brand"
-                : "border-[rgba(148,196,208,0.2)] text-ash hover:border-brand/40",
+                : "border-[rgba(79, 182, 208,0.2)] text-ash hover:border-brand/40",
             )}
           >
             <Checkbox
@@ -87,12 +109,12 @@ function DivisionToggle({
               aria-label={`${GENDER_LABEL[gender]} division may enter ${game.name || "this game"}`}
               onChange={(checked) => onToggle(gender, checked)}
             />
-            <span className="text-[11px] font-bold tracking-wide">{GENDER_LABEL[gender]}</span>
+            <span className="text-[0.6875rem] font-bold tracking-wide">{GENDER_LABEL[gender]}</span>
           </label>
         );
       })}
       {game.divisions.length === 0 && (
-        <span className="text-[10px] text-amber-300">Nobody can enter this game</span>
+        <span className="text-[0.625rem] text-amber-300">Nobody can enter this game</span>
       )}
     </div>
   );
@@ -204,11 +226,15 @@ function GameLogo({
     }
   };
 
+  /* Kept as a guard rather than a state a new game can reach: a game now always has an id
+     (see `newGame`), so the upload button is always available. This still covers an
+     already-saved game whose id was lost — and says what to do about that, rather than the
+     old "Save the game with a name", which was advice that did not solve it. */
   if (!game.id) {
     return (
       <span
-        className="flex size-14 shrink-0 items-center justify-center rounded-xl border border-dashed border-[rgba(148,196,208,0.24)] text-ash/50"
-        title="Save the game with a name before adding a logo"
+        className="flex size-14 shrink-0 items-center justify-center rounded-xl border border-dashed border-[rgba(79, 182, 208,0.24)] text-ash/50"
+        title="This game has no id yet — add a name and it will be given one"
       >
         <ImagePlus className="size-5" />
       </span>
@@ -220,14 +246,14 @@ function GameLogo({
       <div className="flex items-center gap-2">
         {/* No filled box behind the logo — it is transparent art, and a shaded
             container reads as part of the picture. The border defines the edge. */}
-        <span className="relative flex size-14 shrink-0 items-center justify-center rounded-xl border border-[rgba(148,196,208,0.35)]">
+        <span className="relative flex size-14 shrink-0 items-center justify-center rounded-xl border border-[rgba(79, 182, 208,0.35)]">
           {version !== undefined ? (
             <img
               src={`/api/games/${encodeURIComponent(game.id)}/logo?v=${version}`}
               alt={`${game.name || "Game"} logo`}
               width={52}
               height={52}
-              className="size-[52px] object-contain p-0.5"
+              className="size-[3.25rem] object-contain p-0.5"
             />
           ) : (
             <Gamepad2 className="size-5 text-ash/50" />
@@ -244,7 +270,7 @@ function GameLogo({
             type="button"
             size="sm"
             variant="ghost"
-            className="h-7 justify-start px-2 text-[11px]"
+            className="h-7 justify-start px-2 text-[0.6875rem]"
             disabled={busy}
             onClick={() => inputRef.current?.click()}
           >
@@ -256,7 +282,7 @@ function GameLogo({
               type="button"
               size="sm"
               variant="ghost"
-              className="h-7 justify-start px-2 text-[11px] text-danger"
+              className="h-7 justify-start px-2 text-[0.6875rem] text-danger"
               disabled={busy}
               onClick={() => void remove()}
             >
@@ -279,13 +305,13 @@ function GameLogo({
       />
 
       {error ? (
-        <p className="max-w-44 text-[10px] leading-tight text-danger">{error}</p>
+        <p className="max-w-44 text-[0.625rem] leading-tight text-danger">{error}</p>
       ) : busy && stage ? (
-        <p className="max-w-44 text-[10px] leading-tight text-brand">{stage}…</p>
+        <p className="max-w-44 text-[0.625rem] leading-tight text-brand">{stage}…</p>
       ) : notice ? (
-        <p className="max-w-44 text-[10px] leading-tight text-ash/80">{notice}</p>
+        <p className="max-w-44 text-[0.625rem] leading-tight text-ash/80">{notice}</p>
       ) : (
-        <p className="max-w-44 text-[10px] leading-tight text-ash/70">
+        <p className="max-w-44 text-[0.625rem] leading-tight text-ash/70">
           Any size — resized to {LOGO_SIZE}×{LOGO_SIZE}. Background removed automatically.
         </p>
       )}
@@ -361,7 +387,7 @@ export function GamesSection({
                     <p className="truncate text-sm font-bold text-snow">
                       {game.name || "Untitled game"}
                     </p>
-                    <p className="font-mono text-[10px] text-ash">
+                    <p className="font-mono text-[0.625rem] text-ash">
                       id: {game.id || "—"} · {game.format} · {game.squadSize} on field · {game.maxSubstitutes} sub{game.maxSubstitutes === 1 ? "" : "s"} · {game.maxCoaches} coach{game.maxCoaches === 1 ? "" : "es"}
                     </p>
                   </div>
@@ -371,10 +397,10 @@ export function GamesSection({
                       <span
                         key={gender}
                         className={cn(
-                          "rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase",
+                          "rounded-full border px-2 py-0.5 text-[0.625rem] font-bold tracking-wider uppercase",
                           game.divisions.includes(gender)
                             ? "border-brand/40 bg-brand/10 text-brand"
-                            : "border-[rgba(148,196,208,0.2)] text-ash/50",
+                            : "border-[rgba(79, 182, 208,0.2)] text-ash/50",
                         )}
                       >
                         {GENDER_LABEL[gender]}
@@ -436,6 +462,14 @@ export function GamesSection({
                     placeholder="5v5"
                     hint="Free text shown on the game card."
                     onChange={(value) => replace(index, { ...game, format: value })}
+                  />
+                  <Setting
+                    label="Prize pool"
+                    maxLength={40}
+                    value={game.prizePool}
+                    placeholder="10,000 SAR"
+                    hint="Shown on this game's card, and added into the total prize figure above the games. Leave blank to hide it. Write the unit once (“10,000 SAR”); a game with no number, like “Trophy only”, is shown on its card but not added to the total."
+                    onChange={(value) => replace(index, { ...game, prizePool: value })}
                   />
                   <Setting
                     label="Players on field"
@@ -505,7 +539,7 @@ export function GamesSection({
                   />
 
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] font-bold tracking-[0.14em] text-ash uppercase">
+                    <span className="text-[0.625rem] font-bold tracking-[0.14em] text-ash uppercase">
                       Accent
                     </span>
                     {ACCENT_PRESETS.map((preset) => {

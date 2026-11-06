@@ -49,19 +49,19 @@ export function ValidationSummary({
     <div className="space-y-3">
       {revealed && grouped.length > 0 && (
         <section className="rounded-2xl border border-danger/40 bg-danger/8 p-4">
-          <h3 className="flex items-center gap-2 text-[11px] font-bold tracking-[0.16em] text-danger uppercase">
+          <h3 className="flex items-center gap-2 text-[0.6875rem] font-bold tracking-[0.16em] text-danger uppercase">
             <AlertCircle className="size-3.5" />
             {issueCount === 1 ? t("summary.issueOne") : t("summary.issues", { count: issueCount })}
           </h3>
           <ul className="mt-3 space-y-2">
             {grouped.map(([step, items]) => (
               <li key={step} className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                <span className="text-[11px] font-bold tracking-wider text-ash uppercase">
+                <span className="text-[0.6875rem] font-bold tracking-wider text-ash uppercase">
                   {STEP_TITLE_KEYS[step] ? t(STEP_TITLE_KEYS[step]) : t("summary.form")}:
                 </span>
                 <span className="text-xs text-snow">{message(items[0].message)}</span>
                 {items.length > 1 && (
-                  <span className="text-[11px] text-ash">
+                  <span className="text-[0.6875rem] text-ash">
                     {t("summary.more", { count: items.length - 1 })}
                   </span>
                 )}
@@ -69,7 +69,7 @@ export function ValidationSummary({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-6 px-1.5 text-[11px] text-brand hover:bg-brand/10"
+                  className="h-6 px-1.5 text-[0.6875rem] text-brand hover:bg-brand/10"
                   onClick={() => onGoToStep(step)}
                 >
                   <Pencil className="size-3" />
@@ -83,7 +83,7 @@ export function ValidationSummary({
 
       {warnings.length > 0 && (
         <section className="rounded-2xl border border-amber-400/35 bg-amber-400/8 p-4">
-          <h3 className="flex items-center gap-2 text-[11px] font-bold tracking-[0.16em] text-amber-300 uppercase">
+          <h3 className="flex items-center gap-2 text-[0.6875rem] font-bold tracking-[0.16em] text-amber-300 uppercase">
             <Info className="size-3.5" />
             {t("summary.checkTitle")}
           </h3>
@@ -94,7 +94,7 @@ export function ValidationSummary({
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-[11px] text-amber-200/60">{t("summary.checkBody")}</p>
+          <p className="mt-2 text-[0.6875rem] text-amber-200/60">{t("summary.checkBody")}</p>
         </section>
       )}
     </div>

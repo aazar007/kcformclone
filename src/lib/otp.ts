@@ -234,6 +234,61 @@ export async function verifyProof(
   }
 }
 
+/** A verified proof, read back without asserting what it is for. */
+export interface ProofClaims {
+  email: string;
+  purpose: string;
+  scope: string | null;
+  expiresAt: number;
+}
+
+/**
+ * Verify the signature and expiry, and return what the proof claims.
+ *
+ * `verifyProof` answers one yes/no question, which is the right shape when the
+ * caller already knows exactly what it expects. The role-scoped edit flow needs the
+ * opposite: one proof carries the team, the role and the member it was minted for,
+ * and several endpoints each want to check *their* part of it. Reading the claims
+ * once keeps the signature check in one place instead of duplicating it per caller.
+ *
+ * Returns null for anything that is not a genuine, unexpired proof — including a
+ * malformed one. Callers must still check `purpose`, `scope` and `email`.
+ */
+export async function readProof(token: string | undefined): Promise<ProofClaims | null> {
+  if (!token) return null;
+
+  const [encoded, signature] = token.split(".");
+  if (!encoded || !signature) return null;
+
+  let expected: string;
+  try {
+    expected = base64url(createHmac("sha256", await secret()).update(encoded).digest());
+  } catch {
+    return null;
+  }
+  if (!safeEqual(signature, expected)) return null;
+
+  try {
+    const payload = JSON.parse(fromBase64url(encoded).toString("utf8")) as {
+      e?: unknown;
+      p?: unknown;
+      x?: unknown;
+      s?: unknown;
+    };
+    if (typeof payload.e !== "string" || typeof payload.p !== "string") return null;
+    if (typeof payload.x !== "number" || payload.x < Date.now()) return null;
+
+    return {
+      email: normaliseEmail(payload.e),
+      purpose: payload.p,
+      scope: typeof payload.s === "string" ? payload.s : null,
+      expiresAt: payload.x,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Check every email proof in a registration payload up front.
  *

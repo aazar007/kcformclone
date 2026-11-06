@@ -73,6 +73,13 @@ export interface StoredTeamMember {
   phone: string;
   role: string;
   requirements: unknown;
+  /** When the member confirmed their address; null means still pending. */
+  emailConfirmedAt: string | Date | null;
+  /** When they completed their own details; null means the player has not yet. */
+  profileCompletedAt: string | Date | null;
+  /** Set when an organiser banned this member. */
+  bannedAt: string | Date | null;
+  banReason?: string;
   createdAt: string | Date;
 }
 
@@ -85,6 +92,9 @@ export interface EditableTeam {
   gameId: string;
   gameName: string;
   leaderIndex: number;
+  /** Set when an organiser banned the whole team. */
+  bannedAt?: string | Date | null;
+  banReason?: string;
   createdAt: string | Date;
   updatedAt: string | Date;
   members: StoredTeamMember[];
@@ -156,14 +166,12 @@ export function TeamEditor({
   secret,
   onCancel,
   onSaved,
-  onDeleted,
 }: {
   team: EditableTeam;
   config: TournamentConfig;
   secret: string;
   onCancel: () => void;
   onSaved: (team: EditableTeam, warnings: string[]) => void;
-  onDeleted: (reference: string) => void;
 }) {
   const [teamName, setTeamName] = React.useState(team.teamName.replace(/^Team\s+/i, ""));
   const [gender, setGender] = React.useState(team.gender);
@@ -172,8 +180,6 @@ export function TeamEditor({
   const [members, setMembers] = React.useState<DraftMember[]>(() => toDraft(team));
 
   const [saving, setSaving] = React.useState(false);
-  const [deleting, setDeleting] = React.useState(false);
-  const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const [warnings, setWarnings] = React.useState<string[]>([]);
@@ -278,28 +284,6 @@ export function TeamEditor({
     }
   };
 
-  const remove = async () => {
-    setDeleting(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/admin/teams/${encodeURIComponent(team.id)}`, {
-        method: "DELETE",
-      });
-      const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-
-      if (!response.ok) {
-        setError(typeof payload.error === "string" ? payload.error : "Could not remove that registration.");
-        return;
-      }
-
-      onDeleted(typeof payload.reference === "string" ? payload.reference : team.reference);
-    } catch {
-      setError("We could not reach the server.");
-    } finally {
-      setDeleting(false);
-    }
-  };
-
   const fieldError = (key: string) => fieldErrors[key];
 
   return (
@@ -307,7 +291,7 @@ export function TeamEditor({
       {/* ---------------------------- Team fields ---------------------------- */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1.5">
-          <label htmlFor={`${team.id}-name`} className="text-[10px] font-bold tracking-[0.14em] text-ash uppercase">
+          <label htmlFor={`${team.id}-name`} className="text-[0.625rem] font-bold tracking-[0.14em] text-ash uppercase">
             Team name
           </label>
           <Input
@@ -316,12 +300,12 @@ export function TeamEditor({
             invalid={Boolean(fieldError("teamName"))}
             onChange={(event) => setTeamName(event.target.value)}
           />
-          <p className="text-[10px] text-ash/70">“Team” is added automatically.</p>
-          {fieldError("teamName") && <p className="text-[10px] text-danger">{fieldError("teamName")}</p>}
+          <p className="text-[0.625rem] text-ash/70">“Team” is added automatically.</p>
+          {fieldError("teamName") && <p className="text-[0.625rem] text-danger">{fieldError("teamName")}</p>}
         </div>
 
         <div className="space-y-1.5">
-          <span className="text-[10px] font-bold tracking-[0.14em] text-ash uppercase">Division</span>
+          <span className="text-[0.625rem] font-bold tracking-[0.14em] text-ash uppercase">Division</span>
           <Select value={gender} onValueChange={setGender}>
             <SelectTrigger invalid={Boolean(fieldError("gender"))}>
               <SelectValue />
@@ -334,11 +318,11 @@ export function TeamEditor({
               ))}
             </SelectContent>
           </Select>
-          {fieldError("gender") && <p className="text-[10px] text-danger">{fieldError("gender")}</p>}
+          {fieldError("gender") && <p className="text-[0.625rem] text-danger">{fieldError("gender")}</p>}
         </div>
 
         <div className="space-y-1.5">
-          <span className="text-[10px] font-bold tracking-[0.14em] text-ash uppercase">Game</span>
+          <span className="text-[0.625rem] font-bold tracking-[0.14em] text-ash uppercase">Game</span>
           <Select value={gameId} onValueChange={setGameId}>
             <SelectTrigger invalid={Boolean(fieldError("game"))}>
               <SelectValue placeholder="Choose a game" />
@@ -351,17 +335,17 @@ export function TeamEditor({
               ))}
             </SelectContent>
           </Select>
-          {fieldError("game") && <p className="text-[10px] text-danger">{fieldError("game")}</p>}
+          {fieldError("game") && <p className="text-[0.625rem] text-danger">{fieldError("game")}</p>}
         </div>
 
         <div className="space-y-1.5">
-          <span className="text-[10px] font-bold tracking-[0.14em] text-ash uppercase">Roster</span>
-          <p className="flex h-11 items-center gap-2 rounded-lg border border-[rgba(148,196,208,0.18)] bg-wall-950/60 px-3 font-mono text-[11px] text-ash">
+          <span className="text-[0.625rem] font-bold tracking-[0.14em] text-ash uppercase">Roster</span>
+          <p className="flex h-11 items-center gap-2 rounded-lg border border-[rgba(79, 182, 208,0.18)] bg-wall-950/60 px-3 font-mono text-[0.6875rem] text-ash">
             {counts.starters} starter{counts.starters === 1 ? "" : "s"}
             {counts.substitutes > 0 && ` · ${counts.substitutes} sub${counts.substitutes === 1 ? "" : "s"}`}
             {counts.coaches > 0 && ` · ${counts.coaches} coach${counts.coaches === 1 ? "" : "es"}`}
           </p>
-          <p className="text-[10px] text-ash/70">
+          <p className="text-[0.625rem] text-ash/70">
             {game ? `${game.name} fields ${rules.starters}` : "Choose a game"}
           </p>
         </div>
@@ -371,7 +355,7 @@ export function TeamEditor({
       {(composition.length > 0 || warnings.length > 0) && (
         <ul className="space-y-1 rounded-xl border border-amber-400/35 bg-amber-400/8 p-3">
           {[...composition, ...warnings].map((note) => (
-            <li key={note} className="flex items-start gap-2 text-[11px] leading-relaxed text-amber-100/90">
+            <li key={note} className="flex items-start gap-2 text-[0.6875rem] leading-relaxed text-amber-100/90">
               <TriangleAlert className="mt-px size-3 shrink-0 text-amber-300" />
               {note}
             </li>
@@ -386,7 +370,7 @@ export function TeamEditor({
         </p>
       )}
 
-      {fieldError("leader") && <p className="text-[11px] text-danger">{fieldError("leader")}</p>}
+      {fieldError("leader") && <p className="text-[0.6875rem] text-danger">{fieldError("leader")}</p>}
 
       {/* ------------------------------ Members ----------------------------- */}
       <div className="space-y-2">
@@ -399,7 +383,7 @@ export function TeamEditor({
             )}
           >
             <div className="mb-2.5 flex flex-wrap items-center gap-2">
-              <span className="flex size-6 items-center justify-center rounded-lg bg-wall-700 font-mono text-[10px] text-ash">
+              <span className="flex size-6 items-center justify-center rounded-lg bg-wall-700 font-mono text-[0.625rem] text-ash">
                 {index + 1}
               </span>
 
@@ -407,7 +391,7 @@ export function TeamEditor({
                 value={member.role}
                 onValueChange={(value) => patchMember(index, { role: value as MemberRole })}
               >
-                <SelectTrigger className="h-8 w-36 text-[11px]" aria-label={`Role for member ${index + 1}`}>
+                <SelectTrigger className="h-8 w-36 text-[0.6875rem]" aria-label={`Role for member ${index + 1}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -425,10 +409,10 @@ export function TeamEditor({
                 aria-pressed={leaderIndex === index}
                 disabled={member.role === "COACH"}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold tracking-wide uppercase transition-colors",
+                  "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[0.625rem] font-bold tracking-wide uppercase transition-colors",
                   leaderIndex === index
                     ? "border-brand/60 bg-brand/10 text-brand"
-                    : "border-[rgba(148,196,208,0.2)] text-ash hover:border-brand/40 hover:text-snow",
+                    : "border-[rgba(79, 182, 208,0.2)] text-ash hover:border-brand/40 hover:text-snow",
                   member.role === "COACH" && "cursor-not-allowed opacity-40",
                 )}
               >
@@ -440,7 +424,7 @@ export function TeamEditor({
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="ml-auto h-7 px-2 text-[11px] text-danger"
+                className="ml-auto h-7 px-2 text-[0.6875rem] text-danger"
                 disabled={members.length <= 1}
                 onClick={() => removeMember(index)}
               >
@@ -468,7 +452,7 @@ export function TeamEditor({
                   value={member.gameTag}
                   invalid={Boolean(fieldError(`member.${index}.gameTag`))}
                   onChange={(event) => patchMember(index, { gameTag: event.target.value })}
-                  className="font-mono text-[12px]"
+                  className="font-mono text-[0.75rem]"
                 />
               </Labelled>
 
@@ -477,7 +461,7 @@ export function TeamEditor({
                   value={member.universityId}
                   onValueChange={(value) => patchMember(index, { universityId: value })}
                 >
-                  <SelectTrigger invalid={Boolean(fieldError(`member.${index}.university`))} className="text-[12px]">
+                  <SelectTrigger invalid={Boolean(fieldError(`member.${index}.university`))} className="text-[0.75rem]">
                     <SelectValue placeholder="Choose…" />
                   </SelectTrigger>
                   <SelectContent>
@@ -497,7 +481,7 @@ export function TeamEditor({
                   value={member.email}
                   invalid={Boolean(fieldError(`member.${index}.email`))}
                   onChange={(event) => patchMember(index, { email: event.target.value })}
-                  className="font-mono text-[12px]"
+                  className="font-mono text-[0.75rem]"
                 />
               </Labelled>
 
@@ -517,7 +501,7 @@ export function TeamEditor({
                       studentId: digitsOnly(event.target.value).slice(0, STUDENT_ID_MAX),
                     })
                   }
-                  className="font-mono text-[12px]"
+                  className="font-mono text-[0.75rem]"
                 />
               </Labelled>
 
@@ -527,7 +511,7 @@ export function TeamEditor({
                   value={member.discord}
                   invalid={Boolean(fieldError(`member.${index}.discord`))}
                   onChange={(event) => patchMember(index, { discord: event.target.value })}
-                  className="font-mono text-[12px]"
+                  className="font-mono text-[0.75rem]"
                 />
               </Labelled>
 
@@ -538,7 +522,7 @@ export function TeamEditor({
                   value={member.phone}
                   invalid={Boolean(fieldError(`member.${index}.phone`))}
                   onChange={(event) => patchMember(index, { phone: event.target.value })}
-                  className="font-mono text-[12px]"
+                  className="font-mono text-[0.75rem]"
                 />
               </Labelled>
 
@@ -584,59 +568,22 @@ export function TeamEditor({
       </div>
 
       {/* ------------------------------ Actions ----------------------------- */}
-      <div className="flex flex-wrap items-center gap-2 border-t border-[rgba(148,196,208,0.12)] pt-4">
-        <Button type="button" size="sm" variant="outline" onClick={onCancel} disabled={saving || deleting}>
+      <div className="flex flex-wrap items-center gap-2 border-t border-[rgba(79, 182, 208,0.12)] pt-4">
+        <Button type="button" size="sm" variant="outline" onClick={onCancel} disabled={saving}>
           <X className="size-3.5" />
           Cancel
         </Button>
 
-        <Button type="button" size="sm" className="ml-auto" onClick={() => void save()} disabled={saving || deleting}>
+        <Button type="button" size="sm" className="ml-auto" onClick={() => void save()} disabled={saving}>
           {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
           Save changes
         </Button>
 
-        {/* Deleting a whole team is irreversible, so it takes two presses and says
-            what will actually be lost. */}
-        {confirmDelete ? (
-          <span className="flex flex-wrap items-center gap-2 rounded-xl border border-danger/45 bg-danger/10 px-2.5 py-1.5">
-            <span className="text-[11px] text-danger">
-              Delete {team.reference} and all {members.length} of its members?
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="danger"
-              className="h-7 px-2 text-[11px]"
-              disabled={deleting}
-              onClick={() => void remove()}
-            >
-              {deleting ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
-              Yes, delete
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-7 px-2 text-[11px]"
-              onClick={() => setConfirmDelete(false)}
-              disabled={deleting}
-            >
-              Keep
-            </Button>
-          </span>
-        ) : (
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="text-danger"
-            onClick={() => setConfirmDelete(true)}
-            disabled={saving || deleting}
-          >
-            <Trash2 className="size-3.5" />
-            Delete team
-          </Button>
-        )}
+        {/* **No delete button here.** Removing a team is irreversible and lives on the row
+            that shows it, next to the expand toggle — one irreversible action, in one place.
+            It used to be duplicated in this footer, which offered two different routes to
+            the same destructive outcome depending on whether the editor happened to be
+            open. */}
       </div>
     </div>
   );
@@ -655,14 +602,14 @@ function Labelled({
 }) {
   return (
     <div className="min-w-0 space-y-1">
-      <span className="block truncate text-[10px] font-bold tracking-[0.1em] text-ash/80 uppercase">
+      <span className="block truncate text-[0.625rem] font-bold tracking-[0.1em] text-ash/80 uppercase">
         {label}
       </span>
       {children}
       {error ? (
-        <p className="text-[10px] leading-tight text-danger">{error}</p>
+        <p className="text-[0.625rem] leading-tight text-danger">{error}</p>
       ) : hint ? (
-        <p className="text-[10px] leading-tight text-ash/60">{hint}</p>
+        <p className="text-[0.625rem] leading-tight text-ash/60">{hint}</p>
       ) : null}
     </div>
   );

@@ -45,8 +45,8 @@ export function ChromeCrown({ className }: { className?: string }) {
           <stop offset="100%" stopColor="#5d6a78" />
         </linearGradient>
         <radialGradient id={glow} cx="0.5" cy="0.35" r="0.65">
-          <stop offset="0%" stopColor="#67fefe" stopOpacity="0.5" />
-          <stop offset="100%" stopColor="#67fefe" stopOpacity="0" />
+          <stop offset="0%" stopColor="#81fef6" stopOpacity="0.5" />
+          <stop offset="100%" stopColor="#81fef6" stopOpacity="0" />
         </radialGradient>
       </defs>
 
@@ -180,7 +180,7 @@ export function TournamentLogo({
       />
 
       {tagline && (
-        <p className="mt-3 text-center text-[10px] font-bold tracking-[0.42em] text-ash/90 uppercase sm:text-xs">
+        <p className="mt-3 text-center text-[0.625rem] font-bold tracking-[0.42em] text-ash/90 uppercase sm:text-xs">
           {tagline}
         </p>
       )}

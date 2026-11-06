@@ -20,6 +20,16 @@ export interface FieldProps {
    * would turn red mid-word. See `revealsImmediately` in `validation.ts`.
    */
   immediate?: boolean;
+  /**
+   * Wait for the field itself to be touched before showing its error.
+   *
+   * A step-level reveal is too broad for a field that only becomes editable
+   * part-way through: selecting a university unlocks the email input, and without
+   * this the newly enabled field was painted red with "Required" before anybody had
+   * even looked at it. Errors and warnings here wait for a blur instead, while the
+   * step summary still tells the captain what is missing.
+   */
+  revealOnTouch?: boolean;
   required?: boolean;
   badge?: React.ReactNode;
   action?: React.ReactNode;
@@ -63,6 +73,7 @@ export function Field({
   error,
   warning,
   immediate,
+  revealOnTouch,
   required,
   badge,
   action,
@@ -78,7 +89,14 @@ export function Field({
     if (!error) setTouched(false);
   }, [error]);
 
-  const showError = Boolean(error) && (touched || stepRevealed || Boolean(immediate));
+  /* A field that opted out of the step-level reveal speaks only for itself: a blur
+     is the first moment it has actually been answered. */
+  const revealed = revealOnTouch
+    ? touched || Boolean(immediate)
+    : touched || stepRevealed || Boolean(immediate);
+
+  const showError = Boolean(error) && revealed;
+  const showWarning = Boolean(warning) && revealed;
 
   return (
     /* `onBlur` bubbles in React, so one handler here sees focus leaving any
@@ -102,7 +120,7 @@ export function Field({
           <AlertCircle className="mt-px size-3.5 shrink-0" />
           <span>{error}</span>
         </p>
-      ) : warning ? (
+      ) : showWarning ? (
         <p className="flex items-start gap-1.5 text-xs text-amber-300/90">
           <Info className="mt-px size-3.5 shrink-0" />
           <span>{warning}</span>
@@ -140,7 +158,7 @@ export function RolePill({
   return (
     <span
       className={cn(
-        "rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-[0.14em] uppercase",
+        "rounded-full border px-2 py-0.5 text-[0.5625rem] font-bold tracking-[0.14em] uppercase",
         tone[role],
         className,
       )}

@@ -81,7 +81,7 @@ function Paragraph({ text, tournamentName }: { text: string; tournamentName: str
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-[11px] font-bold tracking-[0.18em] text-brand uppercase">{title}</h2>
+      <h2 className="text-[0.6875rem] font-bold tracking-[0.18em] text-brand uppercase">{title}</h2>
       <div className="space-y-3 text-sm leading-relaxed text-ash">{children}</div>
     </section>
   );
@@ -122,7 +122,7 @@ export default async function PrivacyPage({
       <header className="mb-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[11px] font-bold tracking-[0.2em] text-brand uppercase">
+            <p className="text-[0.6875rem] font-bold tracking-[0.2em] text-brand uppercase">
               {config.tournamentName}
             </p>
             <h1 className="mt-2 font-display text-2xl tracking-wide text-snow">{copy.title}</h1>
@@ -152,7 +152,7 @@ export default async function PrivacyPage({
         {/* The organisers' note is for the people who own the notice, and they read
             English — so it stays English whichever language an entrant chose. */}
         <div className="panel rounded-2xl p-4" lang="en" dir="ltr">
-          <p className="text-[11px] leading-relaxed text-ash">
+          <p className="text-[0.6875rem] leading-relaxed text-ash">
             <strong className="text-ash">Note for the organisers:</strong> {PRIVACY_NOTICE_ADVICE}{" "}
             Contact details for data requests should be added to this notice — edit both languages
             under <span className="font-mono">General → Privacy notice</span> in the console.
@@ -160,7 +160,7 @@ export default async function PrivacyPage({
         </div>
       </div>
 
-      <footer className="mt-10 border-t border-[rgba(148,196,208,0.12)] pt-5">
+      <footer className="mt-10 border-t border-[rgba(79, 182, 208,0.12)] pt-5">
         <Link
           href="/"
           className="text-xs text-ash underline-offset-2 transition-colors hover:text-brand hover:underline"

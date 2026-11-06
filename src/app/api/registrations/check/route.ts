@@ -28,11 +28,12 @@
 import { NextResponse } from "next/server";
 import type { DuplicateCheckResponse } from "@/lib/duplicate-check";
 import { teamNamePolicyError } from "@/lib/name-policy";
-import { normaliseEmail, otpConfigured, otpSkipVerify, verifyProof } from "@/lib/otp";
+import { normaliseEmail, otpConfigured, otpSkipVerify, readProof, verifyProof } from "@/lib/otp";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { findMemberClashes, findTeamByReference, findTeamNameClash } from "@/lib/store";
 import { leaderEmail, teamVerifiedEmails } from "@/lib/team-draft";
 import { teamNameKey } from "@/lib/team-name";
+import { parseProofScope } from "@/lib/team-access";
 
 /** Enough for the largest supported roster, with headroom for a resubmit. */
 const MAX_VALUES = 12;
@@ -88,7 +89,18 @@ export async function POST(request: Request) {
   if (editingReference && editProof && (await otpConfigured())) {
     const team = await findTeamByReference(editingReference);
     const leader = team ? leaderEmail(team) : null;
-    if (team && leader && (await verifyProof(editProof, normaliseEmail(leader), "edit-access", team.id))) {
+    /* Any role's proof exempts that team's own rows: a leader correcting the roster,
+       or a player checking their own address, is not a duplicate of themselves. The
+       scope still has to name this team, so one team's proof cannot exempt another's. */
+    const claims = team && editProof ? await readProof(editProof) : null;
+    const scope = parseProofScope(claims?.scope ?? null);
+    if (
+      team &&
+      leader &&
+      claims?.purpose === "edit-access" &&
+      claims.email === normaliseEmail(leader) &&
+      scope?.teamId === team.id
+    ) {
       exceptTeamId = team.id;
       teamEmails = teamVerifiedEmails(team);
     }
@@ -121,35 +133,41 @@ export async function POST(request: Request) {
   /* A name the organisers' own rules reject can never be registered, so there is
      nothing to collide with — the captain sees the policy message instead, and we
      save a query. */
-  if (teamName && !teamNamePolicyError(teamName)) {
-    const clash = await findTeamNameClash(teamNameKey(teamName), exceptTeamId);
-    if (clash) teamNameResult.taken = true;
+  const askTeamName = Boolean(teamName && !teamNamePolicyError(teamName));
+
+  /* One query for both field types: `findMemberClashes` already matches emails
+     and student IDs together and reports which rule caught each person. */
+  const rows = [
+    ...emails.map((email) => ({ email, studentId: "" })),
+    ...studentIds.map((studentId) => ({ email: "", studentId })),
+  ];
+
+  /* **Both questions at once.** Neither depends on the other, and the form is waiting on the
+     answer while the captain types — two round trips in sequence was the difference between
+     the badge resolving immediately and appearing to hang. */
+  const [clash, clashes] = await Promise.all([
+    askTeamName ? findTeamNameClash(teamNameKey(teamName), exceptTeamId) : Promise.resolve(null),
+    rows.length > 0 ? findMemberClashes(rows, exceptTeamId) : Promise.resolve([]),
+  ]);
+
+  if (askTeamName) {
+    teamNameResult.taken = Boolean(clash);
     teamNameResult.label = clash;
   }
 
-  if (emails.length > 0 || studentIds.length > 0) {
-    /* One query for both field types: `findMemberClashes` already matches emails
-       and student IDs together and reports which rule caught each person. */
-    const rows = [
-      ...emails.map((email) => ({ email, studentId: "" })),
-      ...studentIds.map((studentId) => ({ email: "", studentId })),
-    ];
-    const clashes = await findMemberClashes(rows, exceptTeamId);
-
-    for (const email of emails) {
-      members.push({
-        field: "email",
-        value: email,
-        taken: clashes.some((clash) => clash.field === "email" && clash.email.toLowerCase() === email.toLowerCase()),
-      });
-    }
-    for (const studentId of studentIds) {
-      members.push({
-        field: "studentId",
-        value: studentId,
-        taken: clashes.some((clash) => clash.field === "studentId" && clash.studentId.toLowerCase() === studentId.toLowerCase()),
-      });
-    }
+  for (const email of emails) {
+    members.push({
+      field: "email",
+      value: email,
+      taken: clashes.some((entry) => entry.field === "email" && entry.email.toLowerCase() === email.toLowerCase()),
+    });
+  }
+  for (const studentId of studentIds) {
+    members.push({
+      field: "studentId",
+      value: studentId,
+      taken: clashes.some((entry) => entry.field === "studentId" && entry.studentId.toLowerCase() === studentId.toLowerCase()),
+    });
   }
 
   return NextResponse.json({ teamName: teamNameResult, members } satisfies DuplicateCheckResponse);

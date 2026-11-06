@@ -38,13 +38,61 @@ export interface GameDefinition {
   maxCoaches: number;
   /** Two-stop gradient used for the card accent. */
   accent: [string, string];
+  /**
+   * What the winners take, as the organisers want it written.
+   *
+   * Free text rather than a number: prizes here are announced as "10,000 SAR",
+   * "Gaming PC + 5,000 SAR" or "Trophy only", and forcing a numeric field would make
+   * two of those unrepresentable. Empty means the organisers have not published one,
+   * and the card simply omits the line rather than showing a blank.
+   */
+  prizePool: string;
   /** Divisions that may enter this game. */
   divisions: Gender[];
 }
 
+/**
+ * A sponsor shown on the landing page.
+ *
+ * A logo card, not a paragraph: the role is the heading printed above the mark, and
+ * `name` is what stands in for the logo. Uploaded artwork would need the storage,
+ * validation and cache-busting the game logos got, so a wordmark in the card is what
+ * ships — it reads as a logo tile and needs no second asset pipeline.
+ */
+export interface Sponsor {
+  id: string;
+  /** The wordmark shown in the tile — "Riyadh Bank", "stc". */
+  name: string;
+  /**
+   * What they sponsor as: "Platinum Sponsor", "Official Bank", "Media Partner".
+   *
+   * Printed as the heading of the tile. Free text because the tiers are the
+   * organisers' commercial language, not something this application can enumerate.
+   */
+  role: string;
+  /** Where the tile links to. Empty means it is not a link. */
+  url: string;
+}
+
+/**
+ * One place to watch the tournament, shown while it is live.
+ *
+ * Deliberately just an app name and a URL: the organisers add "Twitch" or
+ * "YouTube" as they would write it on a poster, and the landing page renders each as
+ * a button. Nothing is inferred from the URL, so a channel on a platform this
+ * application has never heard of works exactly the same way.
+ */
+export interface WatchLink {
+  id: string;
+  /** The app or channel name — "Twitch", "YouTube", "Kick". */
+  label: string;
+  /** Where the button goes. Only http(s) or a site-relative path survives. */
+  url: string;
+}
+
 /** Accent presets offered when an organiser creates a game. */
 export const ACCENT_PRESETS: { id: string; label: string; accent: [string, string] }[] = [
-  { id: "cyan", label: "Cyan", accent: ["#5cf0f7", "#23b5c6"] },
+  { id: "cyan", label: "Cyan", accent: ["#4fb6d0", "#0583b6"] },
   { id: "amber", label: "Amber", accent: ["#ffb457", "#f97316"] },
   { id: "lime", label: "Lime", accent: ["#8de08d", "#22a06b"] },
   { id: "rose", label: "Rose", accent: ["#ff8497", "#e63950"] },
@@ -96,6 +144,72 @@ export interface TournamentConfig {
   registrationOpen: boolean;
   closedMessage: string;
 
+  /**
+   * Whether an admin or staff member may still register while the window is closed.
+   *
+   * On by default: the people running the tournament are the ones who need to enter a
+   * team that turned up late, or to correct an entry after the deadline. Turning it off
+   * closes the form to *everyone*, which is the only way to stop a signed-in organiser
+   * from adding a team by accident once the bracket is locked.
+   *
+   * This is a policy switch, not the security boundary. The exemption itself is always
+   * the signed console session — the flag only decides whether that session is honoured.
+   */
+  allowOrganiserEntriesClosed: boolean;
+
+  /**
+   * Whether the tournament is being played right now.
+   *
+   * Independent of `registrationOpen` on purpose: the usual case is a live
+   * tournament whose registration has closed, but an organiser may also want the
+   * announcement up while the form is still open. The notice is shown on the
+   * landing page — the "main page" — and never inside the registration form.
+   */
+  tournamentLive: boolean;
+
+  /**
+   * The live notice, as the organisers want it written.
+   *
+   * Empty means "use the translated default", so an organisers who leaves the box
+   * alone still gets a proper sentence in the reader's own language rather than a
+   * hardcoded English one.
+   */
+  liveMessage: string;
+
+  /** Where to watch, when the tournament is live. */
+  watchLinks: WatchLink[];
+
+  /**
+   * The community Discord invite shown on the success screen.
+   *
+   * Empty means "show no link", so a tournament that does not run a Discord never
+   * shows a dead button. It is read *after* a team submits, which is the one moment
+   * every member is guaranteed to be looking — the landing page already has the
+   * latest announcement, but a captain who has just registered needs the room they
+   * will actually play in.
+   *
+   * Editable by any signed-in organiser, because the invite is a thing that expires
+   * and gets reissued mid-tournament.
+   */
+  discordInviteUrl: string;
+
+  /**
+   * The address the footer's "Contact us" writes to.
+   *
+   * Empty hides the link rather than showing a `mailto:` with no destination — a
+   * footer link that opens a blank compose window is worse than no link.
+   */
+  contactEmail: string;
+
+  /**
+   * The tournament's social accounts, shown in the footer.
+   *
+   * Same shape as the watch links so an organiser edits them the same way. Free-form
+   * label plus URL: the committee's accounts change platform, and enumerating them
+   * would mean a code change every time.
+   */
+  socialLinks: WatchLink[];
+
   /** Most players (starters + substitutes) one roster may hold. */
   maxRoster: number;
 
@@ -104,6 +218,26 @@ export interface TournamentConfig {
   gameTagHint: string;
 
   games: GameDefinition[];
+
+  /**
+   * Sponsors, in the order the organisers arranged them.
+   *
+   * Capped at `MAX_SPONSORS` — the landing page shows one strip of them, and a list
+   * long enough to wrap past two rows stops reading as a sponsorship and starts
+   * reading as a wall of text.
+   */
+  sponsors: Sponsor[];
+
+  /**
+   * Typing this as a team name opens the grand admin sign-in instead of registering.
+   *
+   * See `DEFAULT_ADMIN_ENTRY_NAME`. Empty turns the shortcut off; the sign-in itself is
+   * unaffected and still reachable at its own address.
+   */
+  adminEntryName: string;
+
+  /** The same, for the staff door. */
+  staffEntryName: string;
 
   /** Extra per-member fields the organisers added on top of the built-ins. */
   requirements: RequirementDefinition[];
@@ -170,6 +304,54 @@ export const MAX_ROSTER_LIMIT = 12;
 export const MAX_SUPPORT_LIMIT = 8;
 
 /**
+ * How many sponsors the landing page will show.
+ *
+ * Enforced here rather than only in the console: the config row is read on every page
+ * load, and the limit is a property of the layout, not a rule the console happens to
+ * apply.
+ */
+export const MAX_SPONSORS = 9;
+
+/** Longest sponsor name, and how long a stored link may be. */
+export const SPONSOR_NAME_MAX = 48;
+export const SPONSOR_URL_MAX = 200;
+/** Longest sponsor role line — "Platinum Sponsor", "Official Payment Partner". */
+export const SPONSOR_ROLE_MAX = 32;
+
+/**
+ * How many "watch us" buttons the live notice may show.
+ *
+ * A handful of official channels is a choice; a dozen is a directory. The landing
+ * page shows them in one row of buttons, so the cap is about the layout as much as
+ * the setting.
+ */
+export const MAX_WATCH_LINKS = 8;
+
+/** Longest app name ("YouTube Live") and stored watch URL. */
+export const WATCH_LABEL_MAX = 32;
+export const WATCH_URL_MAX = 300;
+
+/** Cap on the footer's social accounts, and the longest contact address accepted. */
+export const MAX_SOCIAL_LINKS = 6;
+export const CONTACT_EMAIL_MAX = 160;
+
+/**
+ * A team name that opens the organiser sign-in instead of registering a team.
+ *
+ * A typed word rather than a link, because the people who need it are the ones who
+ * would otherwise hunt for a URL, and because a name nobody registers is easy to hand
+ * out verbally. It is **not** a credential: both doors still demand their own secret or
+ * mailed code, and every API call is checked again on the server. What it changes is
+ * only where a browser goes.
+ *
+ * Empty disables it. Compared case-insensitively, with whitespace collapsed, so
+ * "Crown-Admin" and "crown admin" both work.
+ */
+export const DEFAULT_ADMIN_ENTRY_NAME = "crown-admin";
+export const DEFAULT_STAFF_ENTRY_NAME = "crown-staff";
+export const ENTRY_NAME_MAX = 32;
+
+/**
  * Longest privacy notice that may be stored.
  *
  * Generous — the built-in one is a few thousand characters — but bounded, because
@@ -183,11 +365,27 @@ export const DEFAULT_TOURNAMENT: TournamentConfig = {
   tournamentName: "KSU Crown",
   tagline: "Esports Championship · Team Registration",
   registrationOpen: true,
-  closedMessage:
-    "Registration for this tournament is closed. Follow the organisers for the next window.",
+  closedMessage: "Registration is closed. Follow the organisers for the next window.",
+  // On by default: a late team, or a correction after the deadline, is exactly what the
+  // organisers need the form for once the public window has shut.
+  allowOrganiserEntriesClosed: true,
+  // Off until the organisers say otherwise: announcing a live tournament that is not
+  // being played is worse than saying nothing.
+  tournamentLive: false,
+  liveMessage: "",
+  watchLinks: [],
+  // Empty: no Discord link until the organisers provide one.
+  discordInviteUrl: "",
+  // No contact address and no social accounts until the organisers add them; an empty
+  // list hides that column of the footer rather than showing a heading over nothing.
+  contactEmail: "",
+  socialLinks: [],
   maxRoster: DEFAULT_MAX_ROSTER,
   gameTagLabel: "Game tag",
-  gameTagHint: "Your in-game handle exactly as it appears — Epic ID, Riot ID or Battle.net tag.",
+  gameTagHint: "Exactly as it appears in game.",
+  sponsors: [],
+  adminEntryName: DEFAULT_ADMIN_ENTRY_NAME,
+  staffEntryName: DEFAULT_STAFF_ENTRY_NAME,
   games: [
     {
       id: "rocket-league",
@@ -196,7 +394,8 @@ export const DEFAULT_TOURNAMENT: TournamentConfig = {
       squadSize: 3,
       maxSubstitutes: 2,
       maxCoaches: 1,
-      accent: ["#5cf0f7", "#23b5c6"],
+      accent: ["#4fb6d0", "#0583b6"],
+      prizePool: "",
       divisions: ["male"],
     },
     {
@@ -207,6 +406,7 @@ export const DEFAULT_TOURNAMENT: TournamentConfig = {
       maxSubstitutes: 2,
       maxCoaches: 2,
       accent: ["#ffb457", "#f97316"],
+      prizePool: "",
       divisions: ["male", "female"],
     },
     {
@@ -218,6 +418,7 @@ export const DEFAULT_TOURNAMENT: TournamentConfig = {
       maxSubstitutes: 0,
       maxCoaches: 1,
       accent: ["#8de08d", "#22a06b"],
+      prizePool: "",
       divisions: ["male"],
     },
     {
@@ -228,6 +429,7 @@ export const DEFAULT_TOURNAMENT: TournamentConfig = {
       maxSubstitutes: 2,
       maxCoaches: 2,
       accent: ["#ff8497", "#e63950"],
+      prizePool: "",
       divisions: ["female"],
     },
   ],
@@ -321,13 +523,92 @@ function normaliseGame(
     ),
     maxCoaches: int(value.maxCoaches, defaults.maxCoaches, 0, MAX_SUPPORT_LIMIT),
     accent: [accent[0], accent[1]] as [string, string],
+    /* Trimmed and bounded. Empty is meaningful — "no prize announced" — so it is kept
+       as an empty string rather than being replaced with a placeholder that would then
+       be printed on the card. */
+    prizePool: str(value.prizePool, "", 40),
     // A game nobody can enter would silently disappear from the form.
     divisions: divisions.length > 0 ? divisions : ["male", "female"],
   };
 }
 
-function normaliseRequirement(value: unknown, index: number): RequirementDefinition | null {
+/**
+ * One sponsor row, or `null` when there is nothing to show.
+ *
+ * The id is derived from the name so the same sponsor typed twice collapses, and so
+ * the console has a stable key to edit and remove by. A link is accepted only when it
+ * is http(s) or a site-relative path — `safeLink` is the same rule every other
+ * organiser-supplied URL goes through, because this text ends up in an `href`.
+ */
+function normaliseSponsor(value: unknown, index: number): Sponsor | null {
   if (!isRecord(value)) return null;
+
+  const name = str(value.name, "", SPONSOR_NAME_MAX);
+  if (!name) return null;
+
+  const id = slugify(str(value.id, name, 48)) || `sponsor-${index + 1}`;
+  const raw = str(value.url, "", SPONSOR_URL_MAX);
+
+  return { id, name, role: str(value.role, "", SPONSOR_ROLE_MAX), url: raw ? safeLink(raw, "") : "" };
+}
+
+/**
+ * One "watch us" row, or `null` when it could not be a button.
+ *
+ * A label and a usable URL are both required: a button with no destination is worse
+ * than no button, and a row with no label would render as an empty tile. The URL goes
+ * through `safeLink`, so an organiser's mistyped paste cannot become a
+ * `javascript:` link on the landing page.
+ */
+function normaliseWatchLink(value: unknown, index: number): WatchLink | null {
+  if (!isRecord(value)) return null;
+
+  const label = str(value.label, "", WATCH_LABEL_MAX);
+  const raw = str(value.url, "", WATCH_URL_MAX);
+  if (!label || !raw) return null;
+
+  const url = safeLink(raw, "");
+  if (!url) return null;
+
+  const id = slugify(str(value.id, label, 48)) || `watch-${index + 1}`;
+  return { id, label, url };
+}
+
+/**
+ * One social account in the footer, or `null` when it could not be a link.
+ *
+ * Same rules as a watch link — a label and a usable URL, both required — and the same
+ * `safeLink` filter, because these render as `<a href>` on every page. The id is
+ * prefixed so a label that matches a watch link's cannot produce the same React key in
+ * a page that shows both.
+ */
+function normaliseSocialLink(value: unknown, index: number): WatchLink | null {
+  const link = normaliseWatchLink(value, index);
+  if (!link) return null;
+  /* Prefix once, not on every save.
+   *
+   * The prefix keeps a social account's React key distinct from a watch link's, but
+   * blindly adding it here re-prefixed an id that already carried it — so saving the
+   * config twice turned `social-instagram` into `social-social-instagram`, and the
+   * account's uploaded logo (keyed by that id) was orphaned. */
+  return { ...link, id: link.id.startsWith("social-") ? link.id : `social-${link.id}` };
+}
+
+/**
+ * A contact address, or empty.
+ *
+ * Deliberately permissive about shape — an address is the operator's own, typed into
+ * their own deployment — but strict about *meaning*: without an `@` it can only ever
+ * be a broken `mailto:`, so it is dropped rather than shown. Newlines and spaces are
+ * removed because they would break the header the browser builds.
+ */
+function emailLike(value: unknown): string {
+  const raw = str(value, "", CONTACT_EMAIL_MAX).replace(/\s+/g, "");
+  if (!raw || !raw.includes("@")) return "";
+  return raw;
+}
+
+function normaliseRequirement(value: unknown, index: number): RequirementDefinition | null {  if (!isRecord(value)) return null;
 
   const label = str(value.label, "", 60);
   if (!label) return null;
@@ -376,6 +657,30 @@ function normaliseExtraUniversity(value: unknown, index: number): University | n
         .filter((domain) => /^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain))
     : [];
 
+  /*
+   * The student-only domains, and how the number sits inside an address.
+   *
+   * Carried through normalisation because an institution the organisers add is often one
+   * whose students use a subdomain the built-in list does not have. Both are optional: an
+   * entry without them behaves exactly as before, and `emailDomains` remains the fallback.
+   */
+  const studentDomains = Array.isArray(value.studentDomains)
+    ? value.studentDomains
+        .map((domain) => (typeof domain === "string" ? domain.trim().toLowerCase() : ""))
+        .filter((domain) => /^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain))
+    : [];
+
+  const rawFormat = isRecord(value.studentIdFormat) ? value.studentIdFormat : null;
+  const affix = (input: unknown) =>
+    typeof input === "string" ? input.trim().slice(0, 12) : "";
+  const studentIdFormat = rawFormat
+    ? (() => {
+        const prefix = affix(rawFormat.prefix);
+        const suffix = affix(rawFormat.suffix);
+        return prefix || suffix ? { ...(prefix ? { prefix } : {}), ...(suffix ? { suffix } : {}) } : null;
+      })()
+    : null;
+
   const sector: UniversitySector = value.sector === "Private" ? "Private" : "Government";
 
   return {
@@ -384,6 +689,8 @@ function normaliseExtraUniversity(value: unknown, index: number): University | n
     city: str(value.city, "—", 60),
     sector,
     emailDomains: domains,
+    ...(studentDomains.length > 0 ? { studentDomains } : {}),
+    ...(studentIdFormat ? { studentIdFormat } : {}),
     region: isCustomRegion(value.region) ? value.region : "Other",
     addedByOrganisers: true,
   };
@@ -461,6 +768,37 @@ export function normaliseConfig(input: unknown): TournamentConfig {
     ? input.allowedRegions.filter(isCustomRegion)
     : [];
 
+  /* Sponsors, capped in order. `slice` after de-duplication rather than before, so a
+     duplicated first entry does not cost the organisers a slot. */
+  const sponsors = Array.isArray(input.sponsors)
+    ? input.sponsors
+        .map(normaliseSponsor)
+        .filter((sponsor): sponsor is Sponsor => sponsor !== null)
+        .filter((sponsor, index, all) => all.findIndex((other) => other.id === sponsor.id) === index)
+        .slice(0, MAX_SPONSORS)
+    : [];
+
+  /* What to watch, capped in order and de-duplicated by id, exactly like sponsors.
+     A row without both a label and a usable link is dropped rather than rendered as
+     a dead button. */
+  const watchLinks = Array.isArray(input.watchLinks)
+    ? input.watchLinks
+        .map(normaliseWatchLink)
+        .filter((link): link is WatchLink => link !== null)
+        .filter((link, index, all) => all.findIndex((other) => other.id === link.id) === index)
+        .slice(0, MAX_WATCH_LINKS)
+    : [];
+
+  /* Same treatment as the watch links, capped separately: the footer is one row, and
+     six accounts is already more than fits beside the logo on a phone. */
+  const socialLinks = Array.isArray(input.socialLinks)
+    ? input.socialLinks
+        .map(normaliseSocialLink)
+        .filter((link): link is WatchLink => link !== null)
+        .filter((link, index, all) => all.findIndex((other) => other.id === link.id) === index)
+        .slice(0, MAX_SOCIAL_LINKS)
+    : [];
+
   /**
    * One privacy notice, falling back to the built-in text.
    *
@@ -477,11 +815,31 @@ export function normaliseConfig(input: unknown): TournamentConfig {
     tagline: str(input.tagline, DEFAULT_TOURNAMENT.tagline, 90),
     registrationOpen: input.registrationOpen !== false,
     closedMessage: str(input.closedMessage, DEFAULT_TOURNAMENT.closedMessage, 240),
+    /* `!== false` so a config saved before this existed keeps the behaviour it already
+       had — organisers could register through a closed window then too. */
+    allowOrganiserEntriesClosed: input.allowOrganiserEntriesClosed !== false,
+    /* Off unless the organisers switch it on. `!== false` would be wrong here: a config
+       saved before this existed must not start announcing a live tournament. */
+    tournamentLive: input.tournamentLive === true,
+    /* Empty means "use the translated default" — see the landing page. */
+    liveMessage: str(input.liveMessage, "", 240),
+    watchLinks,
+    /* Through `safeLink`, so a mistyped invite can never become a `javascript:` link
+       on the success screen. Empty stays empty — that is "no Discord", not a fallback. */
+    discordInviteUrl: safeLink(str(input.discordInviteUrl, "", 300), ""),
+    /* A plain address, not a link: the footer builds the `mailto:` so an organiser
+       cannot paste a `javascript:` URL into a field that looks like an email. Anything
+       without an `@` is dropped — that would only ever be a broken link. */
+    contactEmail: emailLike(input.contactEmail),
+    socialLinks,
     maxRoster: int(input.maxRoster, DEFAULT_MAX_ROSTER, 1, MAX_ROSTER_LIMIT),
     gameTagLabel: str(input.gameTagLabel, DEFAULT_TOURNAMENT.gameTagLabel, 40),
     gameTagHint: str(input.gameTagHint, DEFAULT_TOURNAMENT.gameTagHint, 160),
     // A tournament with no games cannot be registered for — keep the defaults.
     games: games.length > 0 ? games : DEFAULT_TOURNAMENT.games.map((game) => ({ ...game })),
+    sponsors,
+    adminEntryName: str(input.adminEntryName, DEFAULT_ADMIN_ENTRY_NAME, ENTRY_NAME_MAX),
+    staffEntryName: str(input.staffEntryName, DEFAULT_STAFF_ENTRY_NAME, ENTRY_NAME_MAX),
     requirements,
     allowedRegions,
     hiddenUniversities: hidden,

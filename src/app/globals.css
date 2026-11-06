@@ -1,30 +1,175 @@
 @import "tailwindcss";
 
 /* ==========================================================================
+   IBM Plex — the site typeface, in both scripts
+   --------------------------------------------------------------------------
+   Two families from one superfamily, served from `public/fonts`:
+
+     IBM Plex Sans          Latin                 (converted from the supplied TTF)
+     IBM Plex Sans Arabic   Arabic, plus a Latin subset drawn to match it
+
+   The Arabic file declares both subsets with `unicode-range`, so a browser only
+   downloads the script it has to draw: an English page never fetches the Arabic
+   glyphs, and an Arabic page fetches the Arabic ones plus the small Latin subset it
+   needs for names, addresses and digits.
+
+   `font-display: swap` because the text is content, not decoration — a blank page
+   waiting on a font is worse than one line repainting. The preload in `layout.tsx`
+   starts the two regular weights early enough that the swap is rarely visible.
+
+   Weights are limited to the four the interface uses (400 body, 500 medium, 600
+   semibold, 700 bold). Nothing is synthesised from a missing weight, which is what
+   produced the earlier mismatch between English and Arabic headings.
+   ========================================================================== */
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/plex-sans/IBMPlexSans-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/plex-sans/IBMPlexSans-Medium.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/plex-sans/IBMPlexSans-SemiBold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/plex-sans/IBMPlexSans-Bold.woff2") format("woff2");
+}
+
+/* The Arabic script, one declaration per weight. Four real files rather than one
+   rule with a `400 700` range: the files are static, so claiming the range would make
+   the browser stretch the 400 face into a fake bold instead of loading the drawn one. */
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/plex-sans-arabic/ibm-plex-sans-arabic-arabic-400-normal.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1,
+    U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74,
+    U+FE76-FEFC;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/plex-sans-arabic/ibm-plex-sans-arabic-arabic-500-normal.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1,
+    U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74,
+    U+FE76-FEFC;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/plex-sans-arabic/ibm-plex-sans-arabic-arabic-600-normal.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1,
+    U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74,
+    U+FE76-FEFC;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/plex-sans-arabic/ibm-plex-sans-arabic-arabic-700-normal.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1,
+    U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74,
+    U+FE76-FEFC;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/plex-sans-arabic/ibm-plex-sans-arabic-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/plex-sans-arabic/ibm-plex-sans-arabic-latin-500-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/plex-sans-arabic/ibm-plex-sans-arabic-latin-600-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/plex-sans-arabic/ibm-plex-sans-arabic-latin-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+
+/* ==========================================================================
    KSU CROWN — theme extracted from the brand assets
    --------------------------------------------------------------------------
-   Wall  (هوية النادي)  base #243035 · shaded stripes #1D2327 · lit #3D444B
-   Brand (هويّة ksu crown) cyan sampled from the wordmark: #67FEFE
+   Wall — **sampled from the club's 2026 card artwork**, which is a teal-to-navy
+   vertical gradient: #125067 at the lit top edge, through #0B384D and #031B25,
+   down to #010C12 at the foot. The card bodies sit on it at #0A2129, their
+   headers a shade up at #0B232D, and the month pill at #154350.
+   Brand cyan sampled from that same artwork: the accent marks average #4FB6D0,
+   peak at #81FEF6, and the deepest saturated blue is #0583B6.
    Crown chrome: #FFFFFF → #E4EBF1 → #BAC6D2 → #7E8B99
    ========================================================================== */
 
 :root {
-  /* wall / arena surface */
-  --wall-950: #0e1417;
-  --wall-900: #161d21;
-  --wall-850: #1a2126;
-  --wall-800: #1d2327;
-  --wall-700: #243035;
-  --wall-600: #2a363d;
-  --wall-500: #323f47;
-  --wall-400: #3d444b;
-  --wall-300: #4d5962;
+  /* wall / arena surface — darkest (#010C12, the artwork's foot) to lightest */
+  --wall-950: #010c12;
+  --wall-900: #02161d;
+  --wall-850: #031b25;
+  --wall-800: #0a2129;
+  --wall-700: #0d2a34;
+  --wall-600: #123541;
+  --wall-500: #174551;
+  --wall-400: #1e5766;
+  --wall-300: #2b7386;
 
-  /* brand cyan */
-  --brand: #5cf0f7;
-  --brand-bright: #67fefe;
-  --brand-deep: #23b5c6;
-  --brand-dim: #1c6b76;
+  /* brand cyan — the accent marks in the artwork */
+  --brand: #4fb6d0;
+  --brand-bright: #81fef6;
+  --brand-deep: #0583b6;
+  --brand-dim: #14576b;
+
+  /* The hairline used for panel borders and dividers, kept as components so a
+     tone change reaches every surface at once instead of 70 hand-picked rgba
+     values that drift apart. */
+  --hairline: 79, 182, 208;
+  --hairline-strong: 129, 254, 246;
 
   /* chrome + type */
   --chrome-1: #ffffff;
@@ -37,6 +182,111 @@
   --danger: #ff6b6b;
   --danger-deep: #7f2222;
   --ok: #48e5a8;
+
+  /*
+   * **The crown's geometry, decided in exactly one place.**
+   *
+   * The artwork is a fixed layer sized from the viewport, and the hero reserves space
+   * for it. Those two numbers have to agree or the heading lands on the crown — which is
+   * what happened when the spacer was a flat 288px. Both now read these.
+   *
+   * `--crown-w` is the *unscaled* width. At rest the crown is drawn at `scale(0.8)` (see
+   * `.scroll-crown`), so its half-height on screen is `0.8 × width / 3` — the `× 0.2667`
+   * the spacer uses.
+   *
+   * The breakpoints below are the wide-screen half of "works on any screen". A 720px
+   * crown is right on a laptop and a postage stamp on a 3840px display, so it steps up
+   * at 1536 / 1920 / 2560 rather than staying one size everywhere.
+   */
+  --crown-w: min(110vw, 720px);
+
+  /*
+   * **The gap between the artwork and the headline — a small one, on purpose.**
+   *
+   * It was `110px` while the landing was being spaced by eye, and that read as a void.
+   * The only real constraint is Arabic: its diacritics (the shadda in ‌كوّن, the marks
+   * on فريقك) are drawn *above* the text box, so a gap measured between boxes is smaller
+   * than it looks. 16px of box gap is comfortably clear of them.
+   *
+   * It lives here as one number so it can be nudged without touching any layout maths —
+   * the spacer below is the crown's lower edge plus this.
+   */
+  --crown-gap: 16px;
+
+  /* The crown's vertical centre. `1/3` is its true half-height; `14px` is the ceiling
+     gutter, so the top of the artwork sits just below the edge of the screen. `26vh`
+     keeps the original framing on tall displays where there is room to sit lower. */
+  --crown-top: max(calc(var(--crown-w) / 3 + 14px), 26vh);
+
+  /*
+   * **The arena gradient, defined once.**
+   *
+   * Both the page canvas (`html`) and the backdrop layer paint it. That is what stops
+   * a flat dark strip appearing where one covers and the other does not: before this,
+   * the canvas was a single colour (`--wall-900`, #02161D) and any sliver of it showing
+   * above or below the backdrop read as a separate dark band — measured, and exactly the
+   * colour of that fill.
+   *
+   * Sampled from the club's 2026 card artwork: lit teal-blue at the top edge, darkening
+   * to near-black navy at the foot.
+   */
+  --arena-gradient: linear-gradient(
+    180deg,
+    #125067 0%,
+    #0b384d 15%,
+    #052635 30%,
+    #031b25 40%,
+    #02161d 50%,
+    #011017 56%,
+    #010c12 66%,
+    #010c12 100%
+  );
+}
+
+/*
+ * **One number that makes the whole app adapt to the display.**
+ *
+ * Every size in this app — Tailwind's spacing, its `text-*` ramp, its `max-w-*`
+ * containers, and every arbitrary `rem` value — is expressed relative to the root font
+ * size. Raising that one value therefore scales the entire interface proportionally:
+ * a 3840px monitor gets a form that is twice as wide *and* type that is twice as large,
+ * instead of a laptop-sized card floating in a void.
+ *
+ * That was the bug. The shell was capped at a fixed `96rem` = 1536px, so on a 3840
+ * display the form occupied 40% of the width, centred, with 14px body text: measured
+ * 1536/3840 and a panel 1216px wide. Nothing was "broken"; it was simply frozen at one
+ * size while the screen grew around it.
+ *
+ * **The curve is flat where it must be flat.** `0.52vw + 8px` crosses 16px at about
+ * 1536px wide, so phones, tablets and laptops are untouched — the clamp's lower bound
+ * holds them at exactly 16px. Above that the root creeps up by about 1.5% per 100px of
+ * viewport: 18px at 1920, 21px at 2560, 28px at 3840. The upper bound of 30px stops a
+ * hypothetical 8K panel from producing absurdly large type.
+ *
+ * **This does not disturb any breakpoint.** Per the media-queries spec, relative units
+ * inside a media query resolve against the *initial* font size, not the root element's
+ * computed one — so `--breakpoint-3xl: 120rem` and the `@media (max-width: 40rem)`
+ * phone rule below still fire at exactly 1920px and 640px. Only lengths *inside* rules
+ * scale, which is precisely the intent.
+ *
+ * The corollary: a size written in `px` does not scale. That is why the small print in
+ * this app is written in `rem` (`text-[0.6875rem]`, not `text-[11px]`) — a label pinned
+ * at 11px beside body text that had grown to 25px would break the type hierarchy on a
+ * large display, which is exactly what the first attempt at this did.
+ */
+html {
+  font-size: clamp(16px, 0.52vw + 8px, 30px);
+}
+
+/* Wide screens: the crown grows with the display instead of staying a laptop size. */
+@media (min-width: 96rem) {
+  :root { --crown-w: min(110vw, 860px); }
+}
+@media (min-width: 120rem) {
+  :root { --crown-w: min(110vw, 1000px); }
+}
+@media (min-width: 160rem) {
+  :root { --crown-w: min(110vw, 1240px); }
 }
 
 @theme inline {
@@ -65,29 +315,50 @@
   --color-danger: var(--danger);
   --color-ok: var(--ok);
 
-  --font-display: var(--font-archivo), "Arial Black", system-ui, sans-serif;
-  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  /*
+   * IBM Plex, in both scripts. Two raw family names, then the composed lists the
+   * utility classes use — the raw names stay separate so a language rule can name one
+   * without the composed list reading its own property.
+   */
+  --font-plex-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-plex-arabic: "IBM Plex Sans Arabic", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --font-display: var(--font-plex-sans);
+  --font-sans: var(--font-plex-sans);
   --font-mono: var(--font-mono-var), ui-monospace, "SF Mono", Menlo, monospace;
 
   --radius-hud: 14px;
 }
 
+/*
+ * Two breakpoints past Tailwind's largest (`2xl`, 1536px).
+ *
+ * 1920 and 2560 displays are ordinary now, and 3840 is not exotic on a TV or a lecture
+ * theatre screen. Without these, every size in the app is frozen at its `2xl` value and
+ * a 4K monitor shows a phone-sized page in the middle of a very large void.
+ */
+@theme {
+  --breakpoint-3xl: 120rem; /* 1920px */
+  --breakpoint-4xl: 160rem; /* 2560px */
+}
+
 /* --------------------------------------------------------------------------
-   Arabic typeface
+   The typeface, per script
    --------------------------------------------------------------------------
-   Tajawal, selected by the `lang` attribute. `LANGUAGE_BOOTSTRAP_SCRIPT` writes that
-   attribute in `<head>` before the first paint, so the Arabic face is the one that
-   paints rather than a Latin face correcting itself a frame later.
+   IBM Plex Sans for English, IBM Plex Sans Arabic for Arabic, selected by the `lang`
+   attribute. `LANGUAGE_BOOTSTRAP_SCRIPT` writes that attribute in `<head>` before the
+   first paint, so the right face is the one that paints rather than a Latin face
+   correcting itself a frame later.
 
    These declare `font-family` directly on the element that carries `lang`. The
    obvious alternative — re-pointing `--font-sans` per language — **does not work**,
-   and it is worth recording why, because it looks like it should. `body` declares
+   and it is worth recording why, because it looks like it should. `html` declares
    `font-family: var(--font-sans)`, and a `var()` is substituted when the property is
-   computed on `body`. What inherits into every descendant is the *resolved* family
-   list, not the variable. Setting `--font-sans` on a descendant therefore has no
-   effect on it, and setting it on `html` has none either, because `body`'s own
-   declaration wins over what it would have inherited. Verified: with the variables
-   swapped, `getComputedStyle(document.body).fontFamily` still reported the Latin face.
+   computed there. What inherits into every descendant is the *resolved* family list,
+   not the variable. Setting `--font-sans` on a descendant therefore has no effect on
+   it, and setting it on `html` has none either once the element's own declaration is
+   resolved. Verified: with the variables swapped, `getComputedStyle(document.body)
+   .fontFamily` still reported the Latin face.
 
    Declaring the property also solves the reverse case. An English block inside the
    Arabic privacy notice, and the English-only organiser console rendered inside an
@@ -101,58 +372,37 @@
 
 html[lang="ar"],
 [lang="ar"] {
-  font-family: var(--font-arabic), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-plex-arabic);
 }
 
-/* Back to the Latin faces for a subtree that declares English. Also re-states the
+/* Back to the Latin face for a subtree that declares English. Also re-states the
    default on an English page, so `?lang=en` is unaffected either way. */
 [lang="en"] {
-  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-plex-sans);
 }
 
 /*
- * Headings keep their weight in Arabic.
+ * Headings, in both scripts.
  *
- * `font-display` is Archivo Black, a *black* face — its normal weight is far heavier
- * than a normal weight in any other family. Tajawal at 400 is an ordinary text
- * weight, so the family swap alone left every Arabic heading looking thin and the page
- * without its hierarchy: "الفريق" read as body text beside the English "Team" in
- * Archivo Black. Measured before this rule: English heading 400 in Archivo Black,
- * Arabic heading 400 in Tajawal.
+ * `font-display` used to be Archivo Black, whose *normal* weight is already a black
+ * weight — so headings needed no `font-weight` utility to look heavy. IBM Plex has an
+ * ordinary 400, and leaving `.font-display` at 400 flattened the page: "الفريق" read as
+ * body text beside an otherwise identical caption. 700 is the heaviest weight the
+ * family ships, and it restores the hierarchy the wordmark is built around.
  *
- * 800 is the closest weight Tajawal has. This is the one place the stylesheet
- * deliberately overrides a Tailwind utility, scoped to `[lang="ar"]` so English
- * headings keep Archivo Black untouched — intentional and narrow, unlike the
- * accidental override documented at the top of this file. `[lang="en"] .font-display`
- * puts an explicitly-English heading back on Archivo Black, since the Arabic rule
- * would otherwise still match it as a descendant of an Arabic document.
+ * Declared per language rather than once on `.font-display` so the Arabic face is
+ * never displaced by the Latin one — and so an explicitly-English heading inside an
+ * Arabic document stays Latin, which the `[lang="ar"]` selector would otherwise catch
+ * as a descendant.
  */
 [lang="ar"] .font-display {
-  font-family: var(--font-arabic), "Arial Black", system-ui, sans-serif;
-  font-weight: 800;
+  font-family: var(--font-plex-arabic);
+  font-weight: 700;
 }
 
 [lang="en"] .font-display {
-  font-family: var(--font-archivo), "Arial Black", system-ui, sans-serif;
-}
-
-/*
- * Headings keep their weight in Arabic.
- *
- * `font-display` is Archivo Black, a *black* face — its normal weight is far heavier
- * than a normal weight in any other family. Tajawal at 400 is an ordinary text
- * weight, so simply swapping the family left every Arabic heading looking thin and
- * the page without its hierarchy: "الفريق" at 400 read as body text next to the
- * English "Team" in Archivo Black.
- *
- * 800 is the closest Tajawal weight to a black face. This is the one place the
- * stylesheet deliberately overrides a Tailwind utility, and it is scoped to
- * `[lang="ar"]` so English headings keep Archivo Black at 400 untouched — see the
- * warning above about unlayered CSS beating utilities, and note that this override
- * is intentional and narrow rather than incidental.
- */
-[lang="ar"] .font-display {
-  font-weight: 800;
+  font-family: var(--font-plex-sans);
+  font-weight: 700;
 }
 
 /* --------------------------------------------------------------------------
@@ -172,7 +422,24 @@ html[lang="ar"],
   }
 
   html {
-    background-color: var(--wall-900);
+    /*
+     * **The gradient lives on the canvas, not just on the backdrop layer.**
+     *
+     * It used to be a flat `--wall-900` (#02161D) here, with the gradient drawn only by
+     * `WaveWall`. Wherever the backdrop did not cover — before it painted, on a page that
+     * does not mount it, or any sliver above or below it — that flat colour showed as a
+     * hard-edged dark band against the teal. Measured from a screenshot: the band was
+     * #01161D across its whole width, i.e. exactly this fill.
+     *
+     * The canvas now paints the same gradient with `background-attachment: fixed`, so it
+     * is pinned to the viewport exactly as the backdrop is. The two can no longer
+     * disagree, and there is no flat layer left to show through.
+     */
+    background-color: #125067;
+    background-image: var(--arena-gradient);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
     /* Declared on `html` rather than `body` so the per-language rules above can
        displace it. A declaration on `body` wins over anything `body` would inherit,
        which would leave `html[lang="ar"]` unable to reach any text on the page. */
@@ -180,7 +447,19 @@ html[lang="ar"],
   }
 
   body {
-    background-color: var(--wall-900);
+    /*
+     * **No background-color, on purpose.**
+     *
+     * `WaveWall` is a `fixed inset-0 -z-10` layer, and a negative-z-index descendant
+     * paints *below* its ancestors' backgrounds. An opaque fill here therefore covered
+     * the entire arena wall — the stripes and the gradient were both rendered and both
+     * invisible, while the page showed the flat colour from this rule instead. Measured:
+     * the top of the page reported #02161D (this rule) with the gradient present and
+     * never seen.
+     *
+     * The colour still exists as `html`'s background, which becomes the canvas and so
+     * remains the fallback for any page that renders without a wall.
+     */
     color: var(--snow);
     -webkit-font-smoothing: antialiased;
   }
@@ -209,7 +488,7 @@ html[lang="ar"],
     180deg,
     var(--brand-bright) 0%,
     var(--brand) 38%,
-    rgba(160, 244, 250, 0.82) 68%,
+    rgba(var(--hairline-strong), 0.82) 68%,
     rgba(255, 255, 255, 0.55) 100%
   );
   -webkit-background-clip: text;
@@ -228,29 +507,91 @@ html[lang="ar"],
 
 @layer components {
   .panel {
-    background-image: linear-gradient(160deg, rgba(58, 78, 88, 0.42) 0%, rgba(29, 35, 39, 0.72) 62%),
+    background-image: linear-gradient(160deg, rgba(23, 69, 81, 0.42) 0%, rgba(10, 33, 41, 0.72) 62%),
       linear-gradient(0deg, var(--wall-800), var(--wall-800));
-    border: 1px solid rgba(148, 196, 208, 0.14);
+    border: 1px solid rgba(var(--hairline), 0.14);
     box-shadow:
       0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
       0 24px 60px -28px rgba(0, 0, 0, 0.95);
   }
 
   .panel-inset {
-    background-color: rgba(14, 20, 23, 0.55);
-    border: 1px solid rgba(148, 196, 208, 0.1);
+    background-color: rgba(1, 12, 18, 0.55);
+    border: 1px solid rgba(var(--hairline), 0.1);
   }
 }
 
 .brand-glow {
   box-shadow:
-    0 0 0 1px rgba(92, 240, 247, 0.55),
-    0 0 26px -6px rgba(92, 240, 247, 0.5);
+    0 0 0 1px rgba(var(--hairline), 0.55),
+    0 0 26px -6px rgba(var(--hairline), 0.5);
 }
 
 /* --------------------------------------------------------------------------
    Motion
    -------------------------------------------------------------------------- */
+
+/*
+ * **The moving bright behind the page.**
+ *
+ * Two wide, soft lights over the arena gradient. Each layer is a radial gradient
+ * drawn at `200%` of the element and moved by animating `background-position`, which
+ * shifts the light itself across the surface. A `transform` would have been cheaper,
+ * but it moves the *layer* — edges and all — so the element would have to be larger
+ * than the viewport and its seam would eventually cross the screen.
+ *
+ * The two run at different periods (34s and 46s) and in different directions, so
+ * their overlap does not repeat on a short, noticeable beat. `ease-in-out` keeps the
+ * turnaround unhurried; a linear cursor reads as mechanical.
+ *
+ * Opacity is deliberately low. This is ambience behind text, not a background
+ * animation: it should be noticeable only if you stop to look at it.
+ */
+@keyframes wall-drift-a {
+  0% {
+    background-position: 12% -10%;
+  }
+  50% {
+    background-position: 72% 4%;
+  }
+  100% {
+    background-position: 12% -10%;
+  }
+}
+
+@keyframes wall-drift-b {
+  0% {
+    background-position: 88% 2%;
+  }
+  50% {
+    background-position: 18% -6%;
+  }
+  100% {
+    background-position: 88% 2%;
+  }
+}
+
+.wall-light {
+  position: absolute;
+  inset: -20% -10% auto -10%;
+  height: 130%;
+  background-image:
+    radial-gradient(closest-side, rgba(79, 182, 208, 0.3), transparent 72%),
+    radial-gradient(closest-side, rgba(129, 254, 246, 0.14), transparent 70%);
+  background-size:
+    58% 62%,
+    44% 48%;
+  background-repeat: no-repeat;
+  animation: wall-drift-a 34s ease-in-out infinite;
+  will-change: background-position;
+}
+
+.wall-light-late {
+  background-image:
+    radial-gradient(closest-side, rgba(129, 254, 246, 0.16), transparent 70%),
+    radial-gradient(closest-side, rgba(79, 182, 208, 0.18), transparent 74%);
+  animation: wall-drift-b 46s ease-in-out infinite;
+}
 
 @keyframes crown-sheen {
   0% {
@@ -277,6 +618,14 @@ html[lang="ar"],
   mix-blend-mode: overlay;
 }
 
+/*
+ * The entry animation for a step or a roster row.
+ *
+ * 0.4s was long enough to be *waited for*: changing step or adding a member meant
+ * watching a panel slide into place before reading it. Shortened to a quarter of a
+ * second — still a movement rather than a snap, but the content is there by the time the
+ * eye arrives.
+ */
 @keyframes rise {
   from {
     opacity: 0;
@@ -289,7 +638,7 @@ html[lang="ar"],
 }
 
 .animate-rise {
-  animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: rise 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes shimmer {
@@ -340,10 +689,252 @@ input[type="number"] {
   appearance: textfield;
 }
 
+/*
+ * **Stop iOS Safari zooming the page when a field is tapped.**
+ *
+ * Every control here is set at 13–14px. Safari on iOS treats a control under 16px as
+ * too small to read and zooms the viewport in when it takes focus — and it does not
+ * zoom back out afterwards. The result is a page that suddenly looks like it is being
+ * viewed at the wrong resolution, with fields half off the screen and the layout out of
+ * line with the keyboard. Nothing is broken in the CSS; the browser is rescaling it.
+ *
+ * 16px is the threshold. On phones the type is therefore raised to it, which also makes
+ * the numbers easier to read while they are being typed, and from `40rem` up the
+ * designed sizes apply untouched.
+ *
+ * Written outside any `@layer`, so it wins over the utility classes without needing
+ * `!important`.
+ */
+@media (max-width: 40rem) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea,
+  [role="combobox"] {
+    font-size: 16px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sheen::after,
   .animate-rise,
-  .animate-shimmer {
+  .animate-shimmer,
+  /* The arena light is decoration; a visitor who asked for stillness gets a still,
+     lit surface rather than a slow drift they cannot stop. */
+  .wall-light {
     animation: none !important;
   }
+}
+
+/* --------------------------------------------------------------------------
+   Landing page motion
+   -------------------------------------------------------------------------- */
+
+@keyframes hero-float {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-14px) rotate(1deg); }
+}
+@keyframes hero-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.12); }
+}
+@keyframes hero-in {
+  from { opacity: 0; transform: translateY(26px) scale(0.98); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes ring-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes ping-dot {
+  0% { box-shadow: 0 0 0 0 rgba(72, 229, 168, 0.6); }
+  100% { box-shadow: 0 0 0 10px rgba(72, 229, 168, 0); }
+}
+
+.hero-float { animation: hero-float 6s ease-in-out infinite; }
+.hero-pulse { animation: hero-pulse 4.5s ease-in-out infinite; }
+.hero-ring { animation: ring-spin 24s linear infinite; }
+.hero-ping { animation: ping-dot 1.8s ease-out infinite; }
+
+/* The "live" dot in the tournament-is-live notice. Same shape as `hero-ping`, in the
+   red of that badge rather than the green of the registration-status dot. */
+@keyframes live-dot {
+  0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7); }
+  100% { box-shadow: 0 0 0 8px rgba(244, 63, 94, 0); }
+}
+.live-ping { animation: live-dot 1.8s ease-out infinite; }
+.hero-in {
+  opacity: 0;
+  animation: hero-in 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--d, 0ms);
+}
+
+.scroll-crown {
+  --p: 0;
+  position: fixed;
+  left: 50%;
+  /*
+   * **The crown was being cut off at the top of the page.**
+   *
+   * `translate(-50%, -50%)` below centres the box on `top`, so the visible top edge is
+   * `top − halfItsHeight`. The height is `width × 2/3` (the 3:2 aspect ratio), so half of
+   * it is `width × 1/3` — but this line once claimed `0.27 × width`. On a 720px-wide crown
+   * that is 43px short, which put the top edge above the viewport and sliced the top of
+   * the artwork off on exactly the screens tall enough to show it.
+   *
+   * `--crown-top` carries the real `1/3`, the ceiling gutter, and the height-based
+   * fallback. It is defined once in `:root` alongside `--crown-w`, so this rule and the
+   * spacer that reserves the crown's space can never disagree about the geometry again.
+   */
+  top: var(--crown-top);
+  /* Not negative: `body` paints its own background, which would hide a layer below zero. */
+  z-index: 0;
+  width: var(--crown-w);
+  aspect-ratio: 3 / 2;
+  pointer-events: none;
+  opacity: max(0.06, calc(1 - 1.2 * var(--p)));
+  /* Movement is a transform only, so scrolling never triggers layout. */
+  transform: translate(-50%, calc(-50% + 24vh * var(--p))) scale(calc(0.8 + 0.7 * var(--p)));
+  will-change: transform, opacity;
+}
+
+/*
+ * The space the fixed crown occupies, so the headline never sits on it.
+ *
+ * A fixed spacer cannot work here, because the crown's size comes from the viewport. This
+ * mirrors its geometry exactly:
+ *
+ *   - its vertical centre sits at `--crown-top`;
+ *   - at rest it is scaled to `0.8`, so the half-height on screen is `0.8 × width / 3`,
+ *     which is the `× 0.2667` term below.
+ *
+ * Add `top` and that half-height and you have the crown's lower edge; `--crown-gap` is the
+ * small gap between the artwork and the heading.
+ *
+ * Before this, the spacer was a flat 288px and the heading overlapped the crown by 7px at
+ * 768px wide. After it, the hero's `justify-center` was still adding 72–88px of slack on
+ * top, which made the measured gap 104px on one screen and 120px on another — the same
+ * variable gap this rule exists to remove. The section now starts at the spacer.
+ */
+.hero-crown-space {
+  height: calc(var(--crown-top) + var(--crown-w) * 0.2667 + var(--crown-gap));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-float, .hero-pulse, .hero-ring, .hero-ping, .live-ping { animation: none !important; }
+  .hero-in { animation: none !important; opacity: 1; }
+}
+
+/* --------------------------------------------------------------------------
+   The headline, uncovered by the crown
+   --------------------------------------------------------------------------
+   The sentence is painted once and revealed through a clip path, so the text keeps
+   its shaping, kerning and gradient while it appears. Nothing here animates a glyph:
+   Arabic joins letters contextually, and a per-letter fade would re-shape every word
+   on every frame.
+
+   The reveal is a mask measured in JavaScript — one soft-edged gradient per line, its
+   edge at a fraction of a letter — written to `.crown-reveal-clip`. Fractions rather
+   than whole letters are what keep the sweep continuous.
+
+   The default state is the *finished* sentence with the crown hidden, so a reader
+   without JavaScript gets the headline rather than an empty box. */
+
+.crown-reveal {
+  position: relative;
+  /* Sized to the sentence, so the mask and the mark are measured against the words
+     rather than against the full width of the centred heading. */
+  display: inline-block;
+}
+
+.crown-reveal-clip {
+  display: block;
+  /* Hint the compositor: the mask changes every frame, and this keeps that work on the
+     text layer instead of the whole hero. */
+  will-change: mask-image;
+}
+
+/*
+ * Hidden from the **first frame**, not from the first React effect.
+ *
+ * The state is set by a script in `<head>` (see `CROWN_REVEAL_BOOTSTRAP_SCRIPT`), which
+ * runs before the body is painted. Hiding it from an effect instead meant the sentence
+ * painted in full and was then blanked — a visible flash on every load and refresh.
+ *
+ * `opacity` rather than `visibility`, because a hidden-by-visibility heading is also
+ * hidden from a screen reader. There is no transition, so it cannot paint a single frame
+ * of itself, and layout is unaffected either way — nothing shifts when it is revealed.
+ */
+html[data-crown="pending"] .crown-reveal-text {
+  opacity: 0;
+  /*
+   * A safety net, not part of the animation.
+   *
+   * The state is only ever cleared by the component. If it never mounts — a script
+   * error, a bundle that failed to load — the heading would stay invisible for ever.
+   * After four seconds the sentence simply appears, finished. It cannot fire in normal
+   * use: the component flips the state within a frame or two of hydration.
+   */
+  animation: crown-pending-failsafe 1ms linear 4s forwards;
+}
+
+@keyframes crown-pending-failsafe {
+  to { opacity: 1; }
+}
+
+.crown-reveal-text {
+  display: inline-block;
+}
+
+/*
+ * The travelling mark: a wrapper so the glow and the artwork move as one layer.
+ *
+ * Its box is one `em` tall and 3:2 wide — the artwork's own ratio — and the component
+ * centres it on the reveal edge with a single `translate3d`, so nothing here is read
+ * back or laid out while the sweep runs.
+ */
+.crown-reveal-mark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1.5em;
+  height: 1em;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 420ms ease-out;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform: translate3d(-9999px, -9999px, 0);
+}
+
+/* A static bloom behind the artwork. It replaces the `drop-shadow()` this used to
+   carry: a filter on an animated image is recomputed on every decoded frame, which is
+   exactly the kind of cost that stutters on a phone. */
+.crown-reveal-glow {
+  position: absolute;
+  inset: -70% -45%;
+  border-radius: 999px;
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    rgba(129, 254, 246, 0.24),
+    rgba(79, 182, 208, 0.12) 45%,
+    transparent 72%
+  );
+}
+
+.crown-reveal-crown {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.crown-reveal[data-animating="true"] .crown-reveal-mark {
+  opacity: 1;
+}
+
+/* Reduced motion: the sentence is complete by default (see `.crown-reveal`), and the
+   crown is decoration that would only imply movement. */
+@media (prefers-reduced-motion: reduce) {
+  .crown-reveal-mark { display: none; }
+  .crown-reveal-clip { will-change: auto; }
 }

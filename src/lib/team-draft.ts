@@ -46,9 +46,16 @@ export function teamToDraft(team: StoredTeam, config: TournamentConfig): Registr
     discord: member.discord,
     phone: member.phone,
     role: isMemberRole(member.role) ? (member.role as MemberRole) : "STARTER",
-    // A stored member was verified when the entry was created, so the address is
-    // acknowledged; the empty proof is filled in server-side by the edit token.
-    verifiedEmail: member.email,
+    /* Only an address that has actually been confirmed counts as verified.
+     *
+     * This used to mark every member's address as verified, which made one
+     * player's confirmation — or simply opening an entry — look as though the
+     * whole roster had confirmed. Each member confirms their own address from the
+     * link emailed to them, so an unconfirmed member stays unverified (and is
+     * shown as pending) until they use that link. The leader is confirmed when the
+     * registration is created, which is why they have a timestamp.
+     */
+    verifiedEmail: member.emailConfirmedAt ? member.email : "",
     emailProof: "",
     requirements: requirementsOf(member.requirements),
   }));
@@ -88,12 +95,21 @@ export function teamToDraft(team: StoredTeam, config: TournamentConfig): Registr
 }
 
 /**
- * Addresses already attached to a team. The edit endpoint treats these as
- * proven, because the captain has just authenticated as the team — otherwise
- * every edit would demand a fresh code from every member.
+ * Addresses that have actually been confirmed.
+ *
+ * The edit endpoint treats these as proven, because the captain has just
+ * authenticated as the team — otherwise every edit would demand a fresh code.
+ * Pending members are deliberately absent: their addresses are theirs to confirm
+ * from their own emailed link, not something an edit can vouch for. This does not
+ * block an edit, because only the team leader's address is required to be
+ * verified.
  */
 export function teamVerifiedEmails(team: StoredTeam): Set<string> {
-  return new Set(team.members.map((member) => member.email.trim().toLowerCase()));
+  return new Set(
+    team.members
+      .filter((member) => member.emailConfirmedAt !== null)
+      .map((member) => member.email.trim().toLowerCase()),
+  );
 }
 
 /** The display name, for messages. */

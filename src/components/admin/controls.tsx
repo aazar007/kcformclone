@@ -21,11 +21,11 @@ export function SectionCard({
 }) {
   return (
     <section className={cn("panel rounded-2xl p-5", className)}>
-      <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-[rgba(148,196,208,0.12)] pb-4">
+      <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-[rgba(79, 182, 208,0.12)] pb-4">
         <div className="min-w-0">
-          <h2 className="text-[11px] font-bold tracking-[0.18em] text-brand uppercase">{title}</h2>
+          <h2 className="text-[0.6875rem] font-bold tracking-[0.18em] text-brand uppercase">{title}</h2>
           {description && (
-            <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-ash">{description}</p>
+            <p className="mt-1 max-w-2xl text-[0.6875rem] leading-relaxed text-ash">{description}</p>
           )}
         </div>
         {action}
@@ -91,9 +91,9 @@ export function Pill({
   return (
     <span
       className={cn(
-        "rounded-full border px-2 py-0.5 font-mono text-[10px] tracking-wide",
+        "rounded-full border px-2 py-0.5 font-mono text-[0.625rem] tracking-wide",
         tone === "brand" && "border-brand/30 bg-brand/10 text-brand",
-        tone === "muted" && "border-[rgba(148,196,208,0.22)] text-ash",
+        tone === "muted" && "border-[rgba(79, 182, 208,0.22)] text-ash",
         tone === "warn" && "border-amber-400/35 bg-amber-400/10 text-amber-300",
       )}
     >
@@ -105,6 +105,6 @@ export function Pill({
 /** Explains an empty list without leaving the section looking broken. */
 export function EmptyNote({ children }: { children: React.ReactNode }) {
   return (
-    <p className="panel-inset rounded-xl p-4 text-[11px] leading-relaxed text-ash">{children}</p>
+    <p className="panel-inset rounded-xl p-4 text-[0.6875rem] leading-relaxed text-ash">{children}</p>
   );
 }

@@ -5,7 +5,7 @@ import { AdminConsole } from "@/components/admin/admin-console";
 import { CONSOLE_HEADER, staffPath } from "@/lib/admin-path";
 import { loadConfig } from "@/lib/config-store";
 import { sheetUrl } from "@/lib/sheets";
-import { listGameLogoVersions } from "@/lib/store";
+import { listGameLogoVersions, listSponsorLogoVersions } from "@/lib/store";
 
 /**
  * The staff door.
@@ -38,7 +38,10 @@ export default async function StaffSignInPage() {
   if (!presented || presented !== (await staffPath())) notFound();
 
   const { config, source } = await loadConfig();
-  const logoVersions = await listGameLogoVersions().catch(() => ({}) as Record<string, number>);
+  const [logoVersions, sponsorLogoVersions] = await Promise.all([
+    listGameLogoVersions().catch(() => ({}) as Record<string, number>),
+    listSponsorLogoVersions().catch(() => ({}) as Record<string, number>),
+  ]);
 
   return (
     /* Pinned direction and language for the same reason as `/admin`: the console is
@@ -49,6 +52,7 @@ export default async function StaffSignInPage() {
         initialConfig={config}
         configSource={source}
         initialLogoVersions={logoVersions}
+        initialSponsorLogoVersions={sponsorLogoVersions}
         mode="staff"
         sheetUrl={await sheetUrl()}
       />

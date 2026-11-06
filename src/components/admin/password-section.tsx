@@ -141,12 +141,12 @@ export function PasswordSection() {
     >
       <div className="space-y-5">
         {/* ---- Current state ------------------------------------------------ */}
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[rgba(148,196,208,0.16)] bg-wall-950/40 p-3.5">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[rgba(79, 182, 208,0.16)] bg-wall-950/40 p-3.5">
           <ShieldCheck
             className={cn("size-4 shrink-0", configured ? "text-brand" : "text-ash")}
             aria-hidden
           />
-          <span className="text-[11px] leading-relaxed text-ash">
+          <span className="text-[0.6875rem] leading-relaxed text-ash">
             {configured === null
               ? "Checking…"
               : configured
@@ -163,11 +163,11 @@ export function PasswordSection() {
         {/* ---- The form ------------------------------------------------------ */}
         <form onSubmit={save} className="space-y-3">
           <label className="block">
-            <span className="text-[11px] font-bold tracking-[0.14em] text-ash uppercase">
+            <span className="text-[0.6875rem] font-bold tracking-[0.14em] text-ash uppercase">
               {configured ? "Current credential" : "Deployment secret"}
             </span>
             <Input
-              type="password"
+              type={reveal ? "text" : "password"}
               dir="ltr"
               autoComplete="current-password"
               value={current}
@@ -180,7 +180,7 @@ export function PasswordSection() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
-              <span className="text-[11px] font-bold tracking-[0.14em] text-ash uppercase">
+              <span className="text-[0.6875rem] font-bold tracking-[0.14em] text-ash uppercase">
                 New password
               </span>
               <Input
@@ -195,7 +195,7 @@ export function PasswordSection() {
               />
             </label>
             <label className="block">
-              <span className="text-[11px] font-bold tracking-[0.14em] text-ash uppercase">
+              <span className="text-[0.6875rem] font-bold tracking-[0.14em] text-ash uppercase">
                 Repeat it
               </span>
               <Input
@@ -215,7 +215,7 @@ export function PasswordSection() {
             <button
               type="button"
               onClick={() => setReveal((value) => !value)}
-              className="inline-flex items-center gap-1.5 text-[11px] text-ash underline underline-offset-2 hover:text-snow"
+              className="inline-flex items-center gap-1.5 text-[0.6875rem] text-ash underline underline-offset-2 hover:text-snow"
             >
               {reveal ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
               {reveal ? "Hide what I typed" : "Show what I typed"}
@@ -223,7 +223,7 @@ export function PasswordSection() {
             {/* Character count while typing, so a paste that brought more than intended is
                 obvious before it is saved rather than after it fails. */}
             {password.length > 0 && (
-              <span className={cn("text-[11px]", password.length < 12 ? "text-amber-300" : "text-ash/70")}>
+              <span className={cn("text-[0.6875rem]", password.length < 12 ? "text-amber-300" : "text-ash/70")}>
                 {password.length} characters
               </span>
             )}
@@ -264,20 +264,20 @@ export function PasswordSection() {
         </form>
 
         {error && (
-          <p className="flex items-start gap-2 rounded-xl border border-danger/45 bg-danger/10 px-3 py-2 text-[11px] leading-relaxed text-danger">
+          <p className="flex items-start gap-2 rounded-xl border border-danger/45 bg-danger/10 px-3 py-2 text-[0.6875rem] leading-relaxed text-danger">
             <AlertCircle className="mt-px size-3.5 shrink-0" />
             {error}
           </p>
         )}
         {notice && (
-          <p className="flex items-start gap-2 rounded-xl border border-brand/35 bg-brand/8 px-3 py-2 text-[11px] leading-relaxed text-brand">
+          <p className="flex items-start gap-2 rounded-xl border border-brand/35 bg-brand/8 px-3 py-2 text-[0.6875rem] leading-relaxed text-brand">
             <Check className="mt-px size-3.5 shrink-0" />
             {notice}
           </p>
         )}
 
         {/* ---- How it actually works --------------------------------------- */}
-        <div className="space-y-1.5 border-t border-[rgba(148,196,208,0.12)] pt-4 text-[11px] leading-relaxed text-ash">
+        <div className="space-y-1.5 border-t border-[rgba(79, 182, 208,0.12)] pt-4 text-[0.6875rem] leading-relaxed text-ash">
           <p className="font-bold tracking-[0.14em] text-ash uppercase">How this is stored</p>
           <ul className="list-disc space-y-1 ps-4">
             <li>

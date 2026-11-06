@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { appBaseUrl } from "@/lib/app-url";
-import { UNAUTHORISED_MESSAGE, isAdminRequest } from "@/lib/admin-auth";
-import { sendRegistrationConfirmation } from "@/lib/confirmation-email";
+import { UNAUTHORISED_MESSAGE, hasAdminSession, isAdminRequest } from "@/lib/admin-auth";
+import {
+  confirmationMailerReady,
+  pendingMemberConfirmations,
+  sendMemberConfirmationRequests,
+  sendRegistrationConfirmation,
+} from "@/lib/confirmation-email";
+import { runAfterResponse } from "@/lib/deferred";
 import { requestedLanguage } from "@/lib/i18n";
 import { loadConfig } from "@/lib/config-store";
 import { DatabaseNotConfiguredError, databaseConfigured } from "@/lib/db";
@@ -11,6 +17,8 @@ import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { validatePayload } from "@/lib/validation";
 import { checkSheetConnection, sheetsConfigured } from "@/lib/sheets";
 import { toTeamInput } from "@/lib/team-input";
+import { applyDraftProfiles, withCompletionReceipts } from "@/lib/draft-merge";
+import { consumeDraft, draftProfilesById } from "@/lib/draft-store";
 import {
   DuplicateValueError,
   createTeam,
@@ -101,14 +109,53 @@ export async function POST(request: Request) {
   const { config } = await loadConfig();
 
   // "Registration closed" is a rule, not just a hidden form: refuse here too.
-  if (!config.registrationOpen) {
+  //
+  // An organiser who is signed in to the console is exempt. They reach the form
+  // through "View form", and the point of that button is to be able to complete a
+  // registration after the public window has shut — a team that turned up late, a
+  // correction that has to be entered as a fresh entry. The exemption is the signed
+  // session cookie, not a flag in the request body, so it cannot be forged by the
+  // public form the way a query parameter could.
+  if (
+    !config.registrationOpen &&
+    !(config.allowOrganiserEntriesClosed && (await hasAdminSession(request)))
+  ) {
     return NextResponse.json(
       { error: "Registration is closed.", registrationClosed: true },
       { status: 403 },
     );
   }
 
-  const parsed = validatePayload(body, config, {
+  /*
+   * Teammates fill in their own details before the captain submits, so the roster
+   * on screen is only part of the answer: the rest lives in the draft. It is folded
+   * in here, from the server's own copy, rather than trusting the browser to send
+   * fields it never collected.
+   *
+   * The draft is optional — an older client, or a submission after the sweeper has
+   * cleared an abandoned attempt, simply has nothing to merge.
+   */
+  const draftId = typeof (body as { draftId?: unknown })?.draftId === "string"
+    ? (body as { draftId: string }).draftId
+    : "";
+  const draftSecret = typeof (body as { draftSecret?: unknown })?.draftSecret === "string"
+    ? (body as { draftSecret: string }).draftSecret
+    : "";
+  const draftProfiles = draftId && draftSecret
+    ? await draftProfilesById(draftId, draftSecret).catch(() => null)
+    : null;
+
+  const submitted = draftProfiles
+    ? applyDraftProfiles(
+        body,
+        draftProfiles,
+        typeof (body as { leaderIndex?: unknown })?.leaderIndex === "number"
+          ? (body as { leaderIndex: number }).leaderIndex
+          : null,
+      )
+    : body;
+
+  const parsed = validatePayload(submitted, config, {
     // Without OTP_SECRET nothing can be verified, so every submission fails the
     // email check with a clear message rather than being waved through — unless
     // OTP_SKIP_VERIFY is on (local testing only), which accepts any address.
@@ -127,6 +174,13 @@ export async function POST(request: Request) {
 
   const data = parsed.data;
 
+  /* The completion receipts are attached after validation: they are not something
+     the browser may assert, and only a draft this caller proved they own can
+     produce one. */
+  if (draftProfiles) {
+    data.members = withCompletionReceipts(data.members, draftProfiles, data.leaderIndex);
+  }
+
   try {
     /* The friendly duplicate checks. The database constraints below are the real
        authority; these exist so the player is told *what* clashed. */
@@ -141,6 +195,26 @@ export async function POST(request: Request) {
     const clashes = await findMemberClashes(
       data.members.map((member) => ({ email: member.email, studentId: member.studentId })),
     );
+    /* A banned player must not get a second entry — that is what the ban is for.
+       Refused before the ordinary "already registered" answer, which would invite
+       them to try another spelling. */
+    const banned = clashes.filter((clash) => clash.banned);
+    if (banned.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            banned.length === 1
+              ? "One of your members is suspended and cannot be registered."
+              : `${banned.length} of your members are suspended and cannot be registered.`,
+          banned: banned.map((clash) => ({
+            email: clash.email,
+            studentId: clash.studentId,
+            teamName: clash.teamName,
+          })),
+        },
+        { status: 403 },
+      );
+    }
     if (clashes.length > 0) {
       return NextResponse.json(
         {
@@ -168,25 +242,51 @@ export async function POST(request: Request) {
 
       try {
         const team = await createTeam(reference, toTeamInput(data));
-        const leader = team.members[team.leaderIndex] ?? team.members[0];
 
-        /* Mail the confirmation before responding.
+        /* The draft has become a real registration, so it must not linger — its
+           rows would look like a registration in progress whose captain has
+           disappeared, and the sweeper would eventually delete them anyway. The
+           completion tokens were carried into the team above, so links already in
+           players' inboxes keep working. */
+        if (draftId) {
+          await consumeDraft(draftId, draftSecret).catch(() => {});
+        }
+        const leader = team.members[team.leaderIndex] ?? team.members[0];
+        const baseUrl = await appBaseUrl(request);
+        const language = requestedLanguage(body);
+        const mailReady = await confirmationMailerReady();
+        const pendingLinks = pendingMemberConfirmations(team).length;
+
+        /* **Both sends start together, and the response does not wait for them.**
          *
-         * Awaited rather than fired and forgotten: on serverless the instance can
-         * be frozen the moment the response is returned, which would silently drop
-         * the message. It is wrapped so it can never fail the request — the team is
-         * already stored, and telling the captain "registration failed" would only
-         * make them submit a second time. */
-        const confirmed = await sendRegistrationConfirmation(
-          team,
-          await appBaseUrl(request),
-          requestedLanguage(body),
-        );
+         * They used to run one after the other — the leader's receipt first, then
+         * each member in turn — so a three-person roster meant three SMTP sessions
+         * back to back. The last member's link could leave minutes after the first,
+         * which is exactly what was reported.
+         *
+         * Neither send can change what the captain is told: the team is stored and
+         * the reference code is already on screen. So they are kicked off now
+         * (concurrently) and finished after the response is flushed, which keeps the
+         * submit button instant. `runAfterResponse` still keeps the request alive
+         * until they complete, which serverless runtimes require. */
+        await runAfterResponse(async () => {
+          await Promise.allSettled([
+            sendRegistrationConfirmation(team, baseUrl, language),
+            sendMemberConfirmationRequests(team, baseUrl, language),
+          ]);
+        });
 
         return NextResponse.json(
           {
             ok: true,
             reference: team.reference,
+            /*
+             * The link the leader passes round the team. It opens the role-scoped
+             * edit flow with the reference already filled in, so a player adds only
+             * their own address — and the address is what decides which card they
+             * see, never the link itself.
+             */
+            teamUrl: `${baseUrl.replace(/\/$/, "")}/?tab=edit&ref=${encodeURIComponent(team.reference)}`,
             submittedAt: team.createdAt.toISOString(),
             tournamentName: team.tournamentName,
             teamName: team.teamName,
@@ -194,9 +294,11 @@ export async function POST(request: Request) {
             universities: Array.from(new Set(team.members.map((m) => m.universityName))),
             memberCount: team.members.length,
             leaderName: leader?.fullName ?? "",
-            /* The form says so when the confirmation did not go out, rather than
-               letting the captain assume an email is on its way. */
-            confirmationEmailSent: confirmed,
+            /* Whether mail can leave at all. The message itself is sent just after
+               this response, so a broken relay is reported in the server log rather
+               than failing a registration that has already been stored. */
+            confirmationEmailSent: mailReady,
+            memberConfirmationsQueued: mailReady ? pendingLinks : 0,
           },
           { status: 201 },
         );

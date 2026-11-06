@@ -136,12 +136,12 @@ export function StaffSection() {
           <UserPlus className="size-4 text-brand" />
           Grant access
         </h3>
-        <p className="mt-1 text-[11px] leading-relaxed text-ash">
+        <p className="mt-1 text-[0.6875rem] leading-relaxed text-ash">
           An address added here can sign in on the Staff tab with a code emailed to it. Staff see
           the registrations — they cannot change the tournament, the rulebook, or this list.
         </p>
 
-        <form onSubmit={grant} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <form onSubmit={grant} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-start">
           <Field label="Email address" htmlFor="staff-email" required>
             <Input
               id="staff-email"
@@ -153,11 +153,16 @@ export function StaffSection() {
               onChange={(event) => setEmail(event.target.value)}
             />
           </Field>
-          <Field label="Note" htmlFor="staff-note" hint="Optional — why they have access.">
+          {/* **No hint under this one.** It used to carry "Optional — why they have
+              access.", which made the Note cell taller than the Email cell; the row is
+              bottom-aligned, so the two inputs sat at different heights and the form
+              looked broken. The explanation moved into the paragraph above, where it costs
+              nothing and both inputs line up. */}
+          <Field label="Note" htmlFor="staff-note">
             <Input
               id="staff-note"
               value={note}
-              placeholder="Runs the bracket"
+              placeholder="Runs the bracket (optional)"
               onChange={(event) => setNote(event.target.value)}
             />
           </Field>
@@ -195,14 +200,14 @@ export function StaffSection() {
             Nobody but you. Add an address above to let another organiser in.
           </p>
         ) : (
-          <ul className="mt-3 divide-y divide-[rgba(148,196,208,0.12)]">
+          <ul className="mt-3 divide-y divide-[rgba(79, 182, 208,0.12)]">
             {live.map((entry) => (
               <li key={entry.email} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-mono text-xs text-snow" dir="ltr">
                     {entry.email}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-ash">
+                  <p className="mt-0.5 text-[0.6875rem] text-ash">
                     {entry.note ? `${entry.note} · ` : ""}
                     added {formatWhen(entry.addedAt)}
                     {entry.lastLoginAt ? ` · last signed in ${formatWhen(entry.lastLoginAt)}` : " · never signed in"}
@@ -228,17 +233,17 @@ export function StaffSection() {
       {revoked.length > 0 && (
         <section className="panel rounded-2xl p-5">
           <h3 className="text-sm font-bold tracking-wide text-ash">Revoked</h3>
-          <p className="mt-1 text-[11px] leading-relaxed text-ash/70">
+          <p className="mt-1 text-[0.6875rem] leading-relaxed text-ash/70">
             Kept so the record of who once had access outlives the decision to take it away.
           </p>
-          <ul className="mt-3 divide-y divide-[rgba(148,196,208,0.12)]">
+          <ul className="mt-3 divide-y divide-[rgba(79, 182, 208,0.12)]">
             {revoked.map((entry) => (
               <li key={entry.email} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
                 <div className="min-w-0 flex-1">
                   <p className={cn("truncate font-mono text-xs text-ash/60 line-through")} dir="ltr">
                     {entry.email}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-ash/60">
+                  <p className="mt-0.5 text-[0.6875rem] text-ash/60">
                     revoked {formatWhen(entry.revokedAt)}
                   </p>
                 </div>

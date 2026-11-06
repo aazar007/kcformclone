@@ -5,9 +5,9 @@
   "description": "KSU Crown esports championship — team registration form",
   "scripts": {
     "dev": "npm run prisma:node && next dev -p 3001",
-    "build": "npm run prisma:node && prisma contract emit && next build",
+    "build": "npm run prisma:node && npm run pdfjs:assets && prisma contract emit && next build",
     "start": "next start -p 3001",
-    "postinstall": "npm run prisma:gen && npm run prisma:node && prisma contract emit",
+    "postinstall": "npm run prisma:gen && npm run prisma:node && npm run pdfjs:assets && prisma contract emit",
     "prisma:gen": "npm run prisma7 -- generate",
     "prisma:node": "node scripts/select-prisma-client.mjs node",
     "prisma:workers": "node scripts/select-prisma-client.mjs workers",
@@ -26,8 +26,9 @@
     "db:studio": "npm run prisma7 -- studio",
     "sheet:export": "tsx scripts/export-sheet.ts",
     "sheet:inspect": "tsx scripts/inspect-sheet.ts",
-    "build:cloud": "npm run prisma:workers && prisma contract emit && next build",
-    "build:workers": "npm run prisma:workers && prisma contract emit && next build"
+    "build:cloud": "npm run prisma:workers && npm run pdfjs:assets && prisma contract emit && next build",
+    "build:workers": "npm run prisma:workers && npm run pdfjs:assets && prisma contract emit && next build",
+    "pdfjs:assets": "node scripts/copy-pdfjs-assets.mjs"
   },
   "dependencies": {
     "@imgly/background-removal": "^1.7.0",

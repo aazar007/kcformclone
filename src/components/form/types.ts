@@ -3,6 +3,28 @@ import type { RulebookVersions } from "@/lib/store";
 import type { MemberDraft, RegistrationDraft } from "@/lib/validation";
 import type { DuplicateWatch } from "./use-duplicate-watch";
 
+/**
+ * The live state of the players who fill in their own details.
+ *
+ * The captain's roster is only half the answer: every teammate completes the rest
+ * from the link emailed when the roster was finished. This is what lets the review
+ * step show those answers as they arrive, instead of asking the captain to reload
+ * and hope.
+ */
+export interface LiveRosterState {
+  /** `idle` before the roster step is left; `sending` while links go out. */
+  status: "idle" | "sending" | "live" | "error";
+  /** How many teammates are expected to answer. */
+  expected: number;
+  /** How many already have. */
+  completed: number;
+  /** Positions that have not answered yet. */
+  pendingPositions: number[];
+  error: string | null;
+  /** Ask the server again now, rather than waiting for the next poll. */
+  refresh: () => void;
+}
+
 export interface StepProps {
   config: TournamentConfig;
   /**
@@ -46,4 +68,6 @@ export interface StepProps {
   gamesRead?: ReadonlySet<string>;
   /** Open the rulebook tab at a given game. */
   onOpenRulebook?: (gameId: string) => void;
+  /** Live progress of the teammates completing their own details. */
+  live?: LiveRosterState;
 }

@@ -24,6 +24,9 @@ const EMPTY_DRAFT = {
   region: "Riyadh" as SaudiRegion,
   sector: "Government" as University["sector"],
   emailDomain: "",
+  studentDomain: "",
+  idPrefix: "",
+  idSuffix: "",
 };
 
 export function UniversitiesSection({ config, patch }: SectionProps) {
@@ -68,6 +71,23 @@ export function UniversitiesSection({ config, patch }: SectionProps) {
       .map((domain) => domain.trim().toLowerCase())
       .filter((domain) => /^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain));
 
+    /* The student-only domains, if any. A student address must then belong to one of
+       these *instead of* the institutional domain — that is what makes an institution
+       whose students hold `@student.x.edu.sa` strict rather than permissive. */
+    const studentDomains = draft.studentDomain
+      .split(",")
+      .map((domain) => domain.trim().toLowerCase())
+      .filter((domain) => /^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain));
+
+    /* How the student number sits inside the address. Empty means “the local part is the
+       number and nothing else”, which is true of most institutions. */
+    const idPrefix = draft.idPrefix.trim().slice(0, 12);
+    const idSuffix = draft.idSuffix.trim().slice(0, 12);
+    const studentIdFormat =
+      idPrefix || idSuffix
+        ? { ...(idPrefix ? { prefix: idPrefix } : {}), ...(idSuffix ? { suffix: idSuffix } : {}) }
+        : undefined;
+
     const taken = new Set([...UNIVERSITIES, ...config.extraUniversities].map((u) => u.id));
     const base = slugify(name) || "university";
     let id = base;
@@ -86,6 +106,8 @@ export function UniversitiesSection({ config, patch }: SectionProps) {
         region: draft.region,
         sector: draft.sector,
         emailDomains: domains,
+        ...(studentDomains.length > 0 ? { studentDomains } : {}),
+        ...(studentIdFormat ? { studentIdFormat } : {}),
         addedByOrganisers: true,
       },
     ]);
@@ -133,7 +155,7 @@ export function UniversitiesSection({ config, patch }: SectionProps) {
         {adding && (
           <div className="animate-rise panel-inset mb-4 space-y-4 rounded-2xl p-4">
             <div className="flex items-center justify-between">
-              <p className="text-[11px] font-bold tracking-[0.14em] text-brand uppercase">
+              <p className="text-[0.6875rem] font-bold tracking-[0.14em] text-brand uppercase">
                 New institution
               </p>
               <Button
@@ -171,12 +193,43 @@ export function UniversitiesSection({ config, patch }: SectionProps) {
                 label="Email domain"
                 value={draft.emailDomain}
                 placeholder="ksu.edu.sa"
-                hint="Comma-separated. Used for the soft “wrong university” warning."
+                hint="Comma-separated. Every member's address must belong to this institution, so an entry with no domain cannot be chosen by anybody."
                 onChange={(value) => setDraft((current) => ({ ...current, emailDomain: value }))}
               />
+              <Setting
+                label="Student domain (optional)"
+                value={draft.studentDomain}
+                placeholder="student.ksu.edu.sa"
+                hint="Use when students hold a subdomain of their own. When set, this replaces the domain above for student addresses."
+                onChange={(value) => setDraft((current) => ({ ...current, studentDomain: value }))}
+              />
+              {/*
+                How the number appears inside the address. Two institutions wrap it in
+                literal text — `s441234567@seu.edu.sa` and `441234567KSA@aou.edu.sa` — and
+                declaring it here is what lets the form read the student number back out of
+                the address instead of asking for the same digits twice.
+              */}
+              <div className="grid grid-cols-2 gap-3">
+                <Setting
+                  label="Text before the ID"
+                  maxLength={12}
+                  value={draft.idPrefix}
+                  placeholder="s"
+                  hint="e.g. s441234567@…"
+                  onChange={(value) => setDraft((current) => ({ ...current, idPrefix: value }))}
+                />
+                <Setting
+                  label="Text after the ID"
+                  maxLength={12}
+                  value={draft.idSuffix}
+                  placeholder="KSA"
+                  hint="e.g. 441234567KSA@…"
+                  onChange={(value) => setDraft((current) => ({ ...current, idSuffix: value }))}
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <span className="block text-[11px] font-bold tracking-[0.12em] text-ash uppercase">
+                  <span className="block text-[0.6875rem] font-bold tracking-[0.12em] text-ash uppercase">
                     Province
                   </span>
                   <Select
@@ -198,7 +251,7 @@ export function UniversitiesSection({ config, patch }: SectionProps) {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <span className="block text-[11px] font-bold tracking-[0.12em] text-ash uppercase">
+                  <span className="block text-[0.6875rem] font-bold tracking-[0.12em] text-ash uppercase">
                     Sector
                   </span>
                   <Select
@@ -233,7 +286,7 @@ export function UniversitiesSection({ config, patch }: SectionProps) {
 
         {config.extraUniversities.length > 0 && (
           <div className="mb-4 space-y-2">
-            <p className="text-[10px] font-bold tracking-[0.14em] text-ash uppercase">
+            <p className="text-[0.625rem] font-bold tracking-[0.14em] text-ash uppercase">
               Added by organisers
             </p>
             {config.extraUniversities.map((university) => (
@@ -246,7 +299,7 @@ export function UniversitiesSection({ config, patch }: SectionProps) {
                   <span className="block truncate text-xs font-semibold text-snow">
                     {university.name}
                   </span>
-                  <span className="block font-mono text-[10px] text-ash">
+                  <span className="block font-mono text-[0.625rem] text-ash">
                     {university.city} · {university.region}
                   </span>
                 </span>
@@ -291,7 +344,7 @@ export function UniversitiesSection({ config, patch }: SectionProps) {
                   className={cn(
                     "flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-colors",
                     open
-                      ? "border-[rgba(148,196,208,0.14)] bg-wall-950/40 hover:border-brand/40"
+                      ? "border-[rgba(79, 182, 208,0.14)] bg-wall-950/40 hover:border-brand/40"
                       : "border-danger/25 bg-danger/5",
                   )}
                 >
@@ -300,7 +353,7 @@ export function UniversitiesSection({ config, patch }: SectionProps) {
                     checked={open}
                     onChange={(event) => toggle(university.id, event.target.checked)}
                     aria-label={`${university.name} may enter`}
-                    className="size-4 shrink-0 cursor-pointer accent-[#5cf0f7]"
+                    className="size-4 shrink-0 cursor-pointer accent-[#4fb6d0]"
                   />
                   <span className="min-w-0 flex-1">
                     <span
@@ -311,13 +364,13 @@ export function UniversitiesSection({ config, patch }: SectionProps) {
                     >
                       {university.name}
                     </span>
-                    <span className="block truncate font-mono text-[10px] text-ash">
+                    <span className="block truncate font-mono text-[0.625rem] text-ash">
                       {university.city} · {university.region}
                       {university.womenOnly && " · women only"}
                     </span>
                   </span>
                   {!open && (
-                    <span className="shrink-0 rounded-full border border-danger/30 bg-danger/8 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-danger uppercase">
+                    <span className="shrink-0 rounded-full border border-danger/30 bg-danger/8 px-1.5 py-0.5 text-[0.5625rem] font-bold tracking-wider text-danger uppercase">
                       Closed
                     </span>
                   )}

@@ -3,15 +3,12 @@
 import * as React from "react";
 import {
   Building2,
-  Check,
   Crown,
   Gamepad2,
   Hash,
   Mail,
   MessageCircle,
   Phone,
-  Plus,
-  Trash2,
   User,
   Users,
 } from "lucide-react";
@@ -26,7 +23,7 @@ import {
   type RosterRules,
   type RequirementDefinition,
 } from "@/lib/tournament";
-import { countRoles, effectiveLeaderIndex, emptyMember, EMAIL_PATTERN, resolveRole, revealsImmediately, STUDENT_ID_MAX } from "@/lib/validation";
+import { countRoles, effectiveLeaderIndex, EMAIL_PATTERN, resizeRoster, resolveRole, revealsImmediately, STUDENT_ID_MAX, studentIdAfterEdit, studentIdFromEmail } from "@/lib/validation";
 import { acceptedEmailDomains, emailMatchesUniversity } from "@/lib/universities";
 import { Field, RolePill } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -76,9 +73,12 @@ function UniversitySelect({
 
   const option = (university: (typeof universities)[number]) => (
     <SelectItem key={university.id} value={university.id}>
-      <span className="flex w-full items-center justify-between gap-3">
-        <span className="truncate">{university.name}</span>
-        <span className="shrink-0 text-[10px] tracking-wider text-ash">
+      {/* On a phone this row is the widest thing on the page, so the two halves have
+          to be allowed to give way: the name truncates, and the city keeps a fixed
+          share rather than collapsing to nothing when the name is long. */}
+      <span className="flex w-full min-w-0 items-center justify-between gap-3">
+        <span className="min-w-0 truncate">{university.name}</span>
+        <span className="shrink-0 truncate text-[0.625rem] tracking-wider text-ash">
           {university.city} · {university.region}
         </span>
       </span>
@@ -87,7 +87,7 @@ function UniversitySelect({
 
   if (universities.length === 0) {
     return (
-      <p className="rounded-xl border border-amber-400/35 bg-amber-400/8 px-3 py-2 text-[11px] text-amber-200">
+      <p className="rounded-xl border border-amber-400/35 bg-amber-400/8 px-3 py-2 text-[0.6875rem] text-amber-200">
         {t("roster.noUniversities")}
       </p>
     );
@@ -114,13 +114,13 @@ function UniversitySelect({
       </Select>
 
       {value && !selected && (
-        <p className="text-[11px] text-danger">
+        <p className="text-[0.6875rem] text-danger">
           {t("roster.universityGone")}
         </p>
       )}
 
       {selected && (
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-ash">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] text-ash">
           <Building2 className="size-3 shrink-0 text-brand" />
           <span>{selected.city}</span>
           <span className="text-ash/50">·</span>
@@ -157,7 +157,7 @@ function RequirementField({
   if (requirement.type === "checkbox") {
     return (
       <div className="space-y-2">
-        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[rgba(148,196,208,0.14)] bg-wall-950/40 p-3 transition-colors hover:border-brand/40">
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[rgba(79, 182, 208,0.14)] bg-wall-950/40 p-3 transition-colors hover:border-brand/40">
           <Checkbox
             checked={value === "yes"}
             onChange={(checked) => onChange(checked ? "yes" : "")}
@@ -169,7 +169,7 @@ function RequirementField({
               {requirement.required && <span className="text-brand">*</span>}
             </span>
             {requirement.hint && (
-              <span className="mt-0.5 block text-[11px] leading-relaxed text-ash">
+              <span className="mt-0.5 block text-[0.6875rem] leading-relaxed text-ash">
                 {requirement.hint}
               </span>
             )}
@@ -228,14 +228,6 @@ function RequirementField({
 /* Role controls                                                       */
 /* ------------------------------------------------------------------ */
 
-/** Which roles the organisers have opened up, starters always included. */
-function roleOptions(rules: RosterRules): MemberRole[] {
-  const roles: MemberRole[] = ["STARTER"];
-  if (rules.maxSubstitutes > 0) roles.push("SUBSTITUTE");
-  if (rules.maxCoaches > 0) roles.push("COACH");
-  return roles;
-}
-
 function RoleSummary({ rules, counts }: { rules: RosterRules; counts: ReturnType<typeof countRoles> }) {
   const { t } = useLanguage();
 
@@ -246,7 +238,7 @@ function RoleSummary({ rules, counts }: { rules: RosterRules; counts: ReturnType
     <span
       key={key}
       className={cn(
-        "rounded-full border px-2.5 py-1 font-mono text-[10px]",
+        "rounded-full border px-2.5 py-1 font-mono text-[0.625rem]",
         ok ? "border-brand/35 bg-brand/8 text-brand" : "border-danger/40 bg-danger/8 text-danger",
       )}
     >
@@ -298,7 +290,6 @@ export function StepRoster({
   const rules = rosterRulesFor(config, game);
   const universities = selectableUniversities(config, draft.gender);
   const counts = countRoles(draft.members, rules);
-  const options = roleOptions(rules);
 
   /* The game tag's label and hint are the organiser's to change — `Game tag` and a
      sentence about Epic IDs ship as the defaults. An untouched default is still
@@ -320,53 +311,36 @@ export function StepRoster({
     .map((region) => regionLabel(region, language))
     .join(language === "ar" ? "، " : ", ");
 
-  const removeMember = (index: number) => {
-    const next = draft.members.filter((_, i) => i !== index);
-    if (next.length === 0) return;
-
-    update("members", next);
-    if (next.length === 1) {
-      /* Down to one person: that person leads, whoever was ticked before. Storing it
-         keeps the saved draft honest — `effectiveLeaderIndex` would resolve it anyway,
-         so this is consistency rather than the rule itself. */
-      update("leaderIndex", 0);
-    } else if (draft.leaderIndex === index) update("leaderIndex", null);
-    else if (draft.leaderIndex !== null && draft.leaderIndex > index) {
-      update("leaderIndex", draft.leaderIndex - 1);
-    }
+  /* The line-up is fixed by the game; the bench and the coach are the captain's
+     choice. Both controls rewrite the shape in one place, so the roster cannot end
+     up in a form validation would refuse. */
+  const setShape = (nextSubstitutes: number, nextCoach: boolean) => {
+    update("members", resizeRoster(draft.members, rules, nextSubstitutes, nextCoach));
   };
 
-  const appendMember = (role: MemberRole) => {
-    if (draft.members.length >= rules.maxTotal) return;
-    update("members", [...draft.members, emptyMember(role)]);
-  };
-
-  const filledCount = draft.members.filter(
-    (member) =>
+  const filledCount = draft.members.filter((member, index) => {
+    const isCoach = resolveRole(member, rules) === "COACH";
+    /* What the captain owes: a university and an address for everyone, plus their
+       own full details. A teammate's name, tag and contacts are completed by that
+       player, so they must not hold the counter back. */
+    const ready = (isCoach || Boolean(member.universityId)) && EMAIL_PATTERN.test(member.email.trim());
+    if (effectiveLeaderIndex(draft, rules) !== index) return ready;
+    return (
+      ready &&
       member.fullName.trim() &&
-      member.universityId &&
-      EMAIL_PATTERN.test(member.email.trim()) &&
       member.discord.trim() &&
-      normalisePhone(member.phone),
-  ).length;
+      normalisePhone(member.phone)
+    );
+  }).length;
 
   const distinctUniversities = Array.from(
     new Set(draft.members.map((member) => member.universityId).filter(Boolean)),
   );
 
-  const atCapacity = draft.members.length >= rules.maxTotal;
-
-  /* Who leads, and whether that was a decision anyone had to make.
-
-     A 1v1 title has one eligible member, so leadership is automatic — the box on that
-     row would otherwise sit unticked while validation refused to submit, on a team with
-     nobody else to nominate. */
+  /* The registrant is the leader and is always the first row, so nothing on this
+     step has to decide it. */
   const leaderIndex = effectiveLeaderIndex(draft, rules);
-  const leaderIsAutomatic =
-    draft.members.filter((member) => resolveRole(member, rules) !== "COACH").length === 1;
-
-  /** Starters still needed to field a legal squad. */
-  const startersRemaining = Math.max(0, rules.starters - counts.starters);
+  const coachAvailable = rules.maxCoaches > 0;
 
   return (
     <div className="space-y-8">
@@ -376,13 +350,11 @@ export function StepRoster({
         error={errors.members}
         hint={
           game
-            ? rules.starters === 1
-              ? t("roster.gameFieldsPlayerOne", { game: game.name, format: game.format })
-              : t("roster.gameFieldsPlayers", { game: game.name, count: rules.starters, format: game.format })
+            ? undefined
             : t("roster.chooseGameFirst")
         }
         badge={
-          <span className="ml-2 rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 font-mono text-[10px] text-brand">
+          <span className="ml-2 rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 font-mono text-[0.625rem] text-brand">
             {t("roster.complete", { done: filledCount, total: draft.members.length })}
           </span>
         }
@@ -390,73 +362,82 @@ export function StepRoster({
         <div className="space-y-3">
           <RoleSummary rules={rules} counts={counts} />
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Starters come first, and this button is always offered while the
-                squad is short — including when the organisers have opened up no
-                other role, which would otherwise leave no way to add anyone. */}
-            <Button
-              type="button"
-              size="sm"
-              variant={startersRemaining > 0 ? "primary" : "outline"}
-              disabled={startersRemaining === 0 || atCapacity}
-              onClick={() => appendMember("STARTER")}
-            >
-              <Plus className="size-3.5" />
-              {startersRemaining > 0
-                ? t(
-                    startersRemaining === 1 ? "roster.addStarterOne" : "roster.addStarter",
-                    { count: startersRemaining },
-                  )
-                : t("roster.startersComplete")}
-            </Button>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* The starting line-up is not a choice. The game fields this many, so
+                the roster always contains exactly this many — the captain picks who
+                they are, not how many. */}
+            <div className="panel-inset rounded-xl p-3">
+              <p className="text-[0.625rem] font-bold tracking-[0.14em] text-ash uppercase">
+                {t("roster.mainPlayers")}
+              </p>
+              <p className="mt-1 font-mono text-lg font-bold text-snow">
+                {rules.starters}
+              </p>
+              <p className="mt-0.5 text-[0.625rem] leading-relaxed text-ash">
+                {t("roster.mainPlayersFixed", {
+                  game: game?.name ?? t("roster.thisGame"),
+                })}
+              </p>
+            </div>
 
-            {rules.maxSubstitutes > 0 && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={counts.substitutes >= rules.maxSubstitutes || atCapacity}
-                onClick={() => appendMember("SUBSTITUTE")}
-              >
-                <Plus className="size-3.5" />
-                {t("roster.addSubstitute")}
-              </Button>
-            )}
-            {rules.maxCoaches > 0 && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={counts.coaches >= rules.maxCoaches || atCapacity}
-                onClick={() => appendMember("COACH")}
-              >
-                <Plus className="size-3.5" />
-                {t("roster.addCoach")}
-              </Button>
-            )}
+            <div className="panel-inset space-y-3 rounded-xl p-3">
+              {rules.maxSubstitutes > 0 ? (
+                <div className="flex items-center justify-between gap-3">
+                  <label
+                    htmlFor="roster-substitutes"
+                    className="text-[0.6875rem] font-semibold text-snow"
+                  >
+                    {t("roster.substitutesLabel")}
+                  </label>
+                  <Select
+                    value={String(counts.substitutes)}
+                    onValueChange={(value) => setShape(Number(value), counts.coaches > 0)}
+                  >
+                    {/* The count is rendered here rather than through `SelectValue`:
+                        Radix only knows an item's label once its menu has been opened,
+                        so a preselected "0" showed an empty box until the captain
+                        happened to open it. */}
+                    <SelectTrigger id="roster-substitutes" className="h-8 w-24 text-[0.6875rem]">
+                      <span className="font-mono">{counts.substitutes}</span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: rules.maxSubstitutes + 1 }, (_, index) => (
+                        <SelectItem key={index} value={String(index)}>
+                          {index}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <p className="text-[0.6875rem] text-ash">{t("roster.noSubstitutes")}</p>
+              )}
+
+              {coachAvailable ? (
+                <label className="flex cursor-pointer items-center justify-between gap-3">
+                  <span className="text-[0.6875rem] font-semibold text-snow">
+                    {t("roster.coachLabel")}
+                  </span>
+                  <Checkbox
+                    checked={counts.coaches > 0}
+                    onChange={(checked) => setShape(counts.substitutes, checked)}
+                    aria-label={t("roster.coachLabel")}
+                  />
+                </label>
+              ) : (
+                <p className="text-[0.6875rem] text-ash">{t("roster.noCoach")}</p>
+              )}
+            </div>
           </div>
 
-          {/* The two ways a roster can stall, each said plainly. */}
-          {startersRemaining > 0 && atCapacity && (
-            <p className="text-[11px] text-amber-300">
-              {t("roster.needMore", { max: rules.maxTotal })}
-            </p>
-          )}
-          {startersRemaining > 0 && !atCapacity && (
-            <p className="text-[11px] text-amber-300">
-              {t("roster.fieldsAtLeast", { game: game?.name ?? t("roster.thisGame"), count: rules.starters, missing: startersRemaining })}
-            </p>
-          )}
-          {startersRemaining === 0 && rules.maxSubstitutes === 0 && rules.maxCoaches === 0 && (
-            <p className="text-[11px] text-ash">
-              {t("roster.startersOnly")}
-            </p>
-          )}
+          <p className="text-[0.6875rem] text-ash">
+            {t("roster.leaderIsRegistrant")}
+          </p>
         </div>
       </Field>
 
       {/* --------------------------- University note --------------------------- */}
-      <div className="panel-inset flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl p-3 text-[11px] text-ash">
+      <div className="panel-inset flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl p-3 text-[0.6875rem] text-ash">
         <Building2 className="size-3.5 shrink-0 text-brand" />
         {/* The keys for these read like English literals and were skipped for years
             because of it: `roster.universityMixed` and friends existed in both
@@ -476,7 +457,7 @@ export function StepRoster({
           </span>
         )}
         {distinctUniversities.length > 1 && (
-          <span className="ms-auto rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 font-mono text-[10px] text-brand">
+          <span className="ms-auto rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 font-mono text-[0.625rem] text-brand">
             {t("roster.universitiesCount", { count: distinctUniversities.length })}
           </span>
         )}
@@ -498,15 +479,30 @@ export function StepRoster({
           const university = universities.find((entry) => entry.id === member.universityId);
           /* The institutional domain is not always what a student holds — KSU issues
              `student.ksu.edu.sa` — so the live hint has to test the same accepted set the
-             validator uses, or it flags a correct address as wrong. */
+             validator uses, or it flags a correct address as wrong. Coaches may use any
+             address, so the domain rule does not apply to them. */
           const domainMismatch =
+            !isCoach &&
             emailDomain.length > 0 &&
             EMAIL_PATTERN.test(member.email.trim()) &&
             Boolean(university) &&
             !emailMatchesUniversity(member.email.trim(), university!);
+          /* The send-code button waits for an address it can actually verify: a
+             complete player address on the selected institution's domain, or any
+             complete address for a coach. */
+          const emailReady =
+            EMAIL_PATTERN.test(member.email.trim()) &&
+            (isCoach ? true : Boolean(university) && emailMatchesUniversity(member.email.trim(), university!));
           const verified =
             member.verifiedEmail.trim().toLowerCase() === member.email.trim().toLowerCase() &&
             member.email.trim().length > 0;
+          /**
+           * The student number this member's address carries, when the institution embeds
+           * one. Used twice: to fill the field, and to say so underneath it — a number that
+           * appeared on its own looks like a bug unless it is explained.
+           */
+          const idFromEmail = university ? studentIdFromEmail(member.email, university) : null;
+          const idWasFilled = idFromEmail !== null && idFromEmail === member.studentId;
 
           return (
             <section
@@ -538,84 +534,24 @@ export function StepRoster({
 
                 <RolePill role={role} label={t(roleLabelKey(role))} />
 
-                {/* Organisers decide whether these roles exist at all. */}
-                {options.length > 1 && (
-                  <Select
-                    value={role}
-                    onValueChange={(value) => setMember(index, { role: value as MemberRole })}
+                {/* The first row is the registrant, so it is the leader. Shown, not
+                    asked: there is no other row it could be. */}
+                {isLeader && (
+                  <span
+                    className="flex items-center gap-2 rounded-xl border border-brand/60 bg-brand/10 px-3 py-1.5 text-brand"
+                    title={t("roster.leaderAutomatic")}
                   >
-                    <SelectTrigger
-                      aria-label={t("roster.roleFor", { role: t(isCoach ? "roster.coach" : "roster.playerN", { n: index + 1 }), n: index + 1 })}
-                      className="h-8 w-36 text-[11px]"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {options.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {t(roleLabelKey(option))}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <Crown className="size-3.5" />
+                    <span className="text-[0.6875rem] font-bold tracking-wide">
+                      {t("roster.teamLeader")}
+                    </span>
+                  </span>
                 )}
-
-                <div className="ms-auto flex items-center gap-2">
-                  {/* Leader is a checkbox on the roster, not a separate step.
-
-                      Except when there is nobody else it could be. On a 1v1 title the
-                      single player *is* the leader, and a tickable box there would be
-                      an invitation to untick the only legal answer — so it is shown as
-                      decided instead: same crown, no control. That is also why the
-                      stored `leaderIndex` does not have to be set for such a roster to
-                      validate; see `effectiveLeaderIndex`. */}
-                  {!isCoach &&
-                    (leaderIsAutomatic ? (
-                      <span
-                        className="flex items-center gap-2 rounded-xl border border-brand/60 bg-brand/10 px-3 py-1.5 text-brand"
-                        title={t("roster.leaderAutomatic")}
-                      >
-                        <Crown className="size-3.5" />
-                        <span className="text-[11px] font-bold tracking-wide">
-                          {t("roster.teamLeader")}
-                        </span>
-                        <Check className="size-3.5" />
-                      </span>
-                    ) : (
-                      <label
-                        className={cn(
-                          "flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-1.5 transition-colors",
-                          isLeader
-                            ? "border-brand/60 bg-brand/10 text-brand"
-                            : "border-[rgba(148,196,208,0.2)] text-ash hover:border-brand/40 hover:text-snow",
-                        )}
-                      >
-                        <Checkbox
-                          checked={isLeader}
-                          onChange={(checked) => update("leaderIndex", checked ? index : null)}
-                          aria-label={t("roster.makeLeader", { n: index + 1 })}
-                        />
-                        <Crown className="size-3.5" />
-                        <span className="text-[11px] font-bold tracking-wide">
-                          {t("roster.teamLeader")}
-                        </span>
-                      </label>
-                    ))}
-
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    aria-label={t(isCoach ? "roster.removeCoach" : "roster.removePlayer", { n: index + 1 })}
-                    disabled={draft.members.length <= 1}
-                    onClick={() => removeMember(index)}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </div>
               </header>
 
               <div className="grid gap-4 lg:grid-cols-2">
+                {isLeader && (
+                  <>
                 <Field
                   label={
                     <>
@@ -662,19 +598,23 @@ export function StepRoster({
                     maxLength={32}
                     placeholder={t("field.gameTagPlaceholder")}
                     onChange={(event) => setMember(index, { gameTag: event.target.value })}
-                    className="font-mono text-[13px]"
+                    className="font-mono text-[0.8125rem]"
                   />
                 </Field>
+                  </>
+                )}
 
                 <Field
                   label={
                     <>
-                      <Building2 className="size-3" /> {t("field.university")}
+                      <Building2 className="size-3" />{" "}
+                      {t(isCoach ? "field.universityCoachLabel" : "field.university")}
                     </>
                   }
                   htmlFor={`uni-${index}`}
-                  required
+                  required={!isCoach}
                   error={errors[`member.${index}.university`]}
+                  hint={isCoach ? t("field.universityCoachHint") : undefined}
                   className="lg:col-span-2"
                 >
                   <UniversitySelect
@@ -682,14 +622,29 @@ export function StepRoster({
                     value={member.universityId}
                     universities={universities}
                     invalid={Boolean(errors[`member.${index}.university`])}
-                    onChange={(value) => setMember(index, { universityId: value })}
+                    onChange={(value) => {
+                      /* The rule for reading a number out of an address belongs to the
+                         institution, so changing institution changes what the address already
+                         typed means — SEU wants the leading `s`, KSU does not. Recompute here
+                         rather than leave a number the new rule does not support. A number
+                         typed by hand is left alone, as everywhere else. */
+                      const nextUniversity = universities.find((entry) => entry.id === value);
+                      setMember(index, {
+                        universityId: value,
+                        studentId: studentIdAfterEdit(
+                          member.studentId,
+                          { email: member.email, university },
+                          { email: member.email, university: nextUniversity },
+                        ),
+                      });
+                    }}
                   />
                 </Field>
 
                 <Field
                   label={
                     <>
-                      <Mail className="size-3" /> {t("field.email")}
+                      <Mail className="size-3" /> {t(isCoach ? "field.emailCoachLabel" : "field.email")}
                     </>
                   }
                   htmlFor={`email-${index}`}
@@ -702,8 +657,11 @@ export function StepRoster({
                         })
                       : undefined
                   }
-                  immediate={revealsImmediately("email", member.email)}
-                  hint={t("field.emailHint")}
+                  /* No red while the address is being typed, and no "Required" the
+                     instant a university unlocks the field. A blur — or an actual
+                     attempt to send the code — is when there is an answer to give. */
+                  revealOnTouch
+                  hint={t(isCoach ? "field.emailCoachHint" : "field.emailHint")}
                   className="lg:col-span-2"
                 >
                   <div className="space-y-2">
@@ -719,39 +677,89 @@ export function StepRoster({
                         inputMode="email"
                         dir="ltr"
                         value={member.email}
-                        /* **No address without a university.** The address is checked
-                           against the chosen institution's own domain, so with nothing
-                           chosen there is no rule to check it against — and whatever is
-                           typed would have to be rejected later, after a code had perhaps
-                           already been sent. Locking the field makes the order of the two
-                           answers obvious instead of explaining a failure afterwards. */
-                        disabled={!member.universityId}
+                        /* **No player address without a university.** A player's address
+                           is checked against the chosen institution's own domain, so with
+                           nothing chosen there is no rule to check it against. Coaches are
+                           exempt: they may use a personal address. */
+                        disabled={!isCoach && !member.universityId}
                         invalid={Boolean(errors[`member.${index}.email`])}
                         autoComplete="off"
                         placeholder={
-                          member.universityId
-                            ? t("field.emailPlaceholder")
-                            : t("field.emailChooseUniversityFirst")
+                          isCoach
+                            ? t("field.emailCoachPlaceholder")
+                            : member.universityId
+                              ? t("field.emailPlaceholder")
+                              : t("field.emailChooseUniversityFirst")
                         }
-                        onChange={(event) => setMember(index, { email: event.target.value })}
-                        className="pe-24 font-mono text-[13px]"
+                        onChange={(event) => {
+                          const email = event.target.value;
+
+                          /*
+                           * Fill the student number from the address the captain is already
+                           * typing. Every institution on the list issues
+                           * `<number>@<domain>` — two wrap it in literal text — so asking for
+                           * the same digits a second time is busywork that also invites a
+                           * typo.
+                           *
+                           * **It fills as they type, not when they finish.** The strict reader
+                           * answers only for a complete address, so the number appeared in a
+                           * single jump on the last keystroke — which looks like the fill is
+                           * broken for the whole nine digits before it. The preview reader
+                           * returns the digits so far, so the field grows number by number,
+                           * right from the first one. It still refuses an address heading for
+                           * another domain, and takes a provisional value back with it.
+                           *
+                           * **It never overwrites a number typed by hand.** The test is
+                           * whether the current value is what the *previous* address implied:
+                           * if it is (or the field is empty), this value came from the address
+                           * and may be updated with it; if it is anything else, a person chose
+                           * it and it is left alone. That needs no extra state, and it keeps
+                           * working when the captain corrects the address after filling.
+                           */
+                          setMember(index, {
+                            email,
+                            studentId: studentIdAfterEdit(
+                              member.studentId,
+                              { email: member.email, university },
+                              { email, university },
+                            ),
+                          });
+                        }}
+                        className="pe-24 font-mono text-[0.8125rem]"
                       />
                       <DuplicateBadge
                         state={duplicates.member(index, "email")}
                         taken={t("dup.alreadyUsed")}
                       />
                     </div>
-                    <EmailVerification
-                      email={member.email}
-                      verifiedEmail={member.verifiedEmail}
-                      disabled={!member.universityId}
-                      onChange={(verifiedEmail, proof) =>
-                        setMember(index, { verifiedEmail, emailProof: proof })
-                      }
-                    />
+                    {/* Only the team leader verifies with a code before submitting.
+                        Everyone else is emailed a link after the captain submits, so
+                        showing them a send-code button would be asking for work that
+                        no longer exists. */}
+                    {isLeader ? (
+                      <EmailVerification
+                        email={member.email}
+                        verifiedEmail={member.verifiedEmail}
+                        ready={emailReady}
+                        onChange={(verifiedEmail, proof) =>
+                          setMember(index, { verifiedEmail, emailProof: proof })
+                        }
+                      />
+                    ) : null}
                   </div>
                 </Field>
 
+                {!isLeader && (
+                  <div className="flex items-start gap-2 rounded-xl border border-brand/25 bg-brand/6 px-3 py-2.5 text-[0.6875rem] leading-relaxed text-ash lg:col-span-2">
+                    <User className="mt-px size-3.5 shrink-0 text-brand" />
+                    <span>
+                      {t(isCoach ? "roster.selfCompleteCoach" : "roster.selfComplete")}
+                    </span>
+                  </div>
+                )}
+
+                {isLeader && (
+                  <>
                 <Field
                   label={
                     <>
@@ -761,7 +769,13 @@ export function StepRoster({
                   htmlFor={`id-${index}`}
                   required={!isCoach}
                   error={errors[`member.${index}.studentId`]}
-                  hint={isCoach ? t("field.studentIdCoachHint") : t("field.studentIdHint")}
+                  hint={
+                    isCoach
+                      ? t("field.studentIdCoachHint")
+                      : idWasFilled
+                        ? t("field.studentIdFromEmail")
+                        : t("field.studentIdHint")
+                  }
                 >
                   {/* Same reason as the email field above — the number is Latin and
                       its badge must sit at its right in both languages. */}
@@ -787,7 +801,7 @@ export function StepRoster({
                           studentId: digitsOnly(event.target.value).slice(0, STUDENT_ID_MAX),
                         })
                       }
-                      className="pe-24 font-mono text-[13px]"
+                      className="pe-24 font-mono text-[0.8125rem]"
                     />
                     <DuplicateBadge
                       state={duplicates.member(index, "studentId")}
@@ -815,7 +829,7 @@ export function StepRoster({
                     autoComplete="off"
                     placeholder={t("field.discordPlaceholder")}
                     onChange={(event) => setMember(index, { discord: event.target.value })}
-                    className="font-mono text-[13px]"
+                    className="font-mono text-[0.8125rem]"
                   />
                 </Field>
 
@@ -829,9 +843,19 @@ export function StepRoster({
                   required
                   error={errors[`member.${index}.phone`]}
                   hint={
-                    normalisePhone(member.phone)
-                      ? t("field.phoneSaved", { phone: formatPhone(normalisePhone(member.phone)!) })
-                      : t("field.phoneHint")
+                    normalisePhone(member.phone) ? (
+                      /* Only the number is LTR. The sentence around it is Arabic and
+                         must read right-to-left; without isolating the number the
+                         `+` and its digits were reordered by the bidi algorithm. */
+                      <>
+                        {t("field.phoneSavedPrefix")}{" "}
+                        <span dir="ltr" className="inline-block font-mono">
+                          {formatPhone(normalisePhone(member.phone)!)}
+                        </span>
+                      </>
+                    ) : (
+                      t("field.phoneHint")
+                    )
                   }
                 >
                   <Input
@@ -848,7 +872,7 @@ export function StepRoster({
                       const normalised = normalisePhone(member.phone);
                       if (normalised) setMember(index, { phone: normalised });
                     }}
-                    className="font-mono text-[13px]"
+                    className="font-mono text-[0.8125rem]"
                   />
                 </Field>
 
@@ -865,12 +889,16 @@ export function StepRoster({
                     />
                   </div>
                 ))}
+                  </>
+                )}
               </div>
 
-              {!verified && (
-                <p className="mt-4 flex items-center gap-2 border-t border-[rgba(148,196,208,0.12)] pt-3 text-[11px] text-amber-300">
+              {/* Only the leader has work left to do here. Everyone else is emailed a
+                  confirmation link after submission, and a coach has no code to enter. */}
+              {isLeader && !verified && (
+                <p className="mt-4 flex items-center gap-2 border-t border-[rgba(79, 182, 208,0.12)] pt-3 text-[0.6875rem] text-amber-300">
                   <Mail className="size-3.5 shrink-0" />
-                  {t("roster.notFinished")}
+                  {t("roster.notFinishedLeader")}
                 </p>
               )}
             </section>
@@ -879,7 +907,7 @@ export function StepRoster({
       </div>
 
       {!game && (
-        <p className="flex items-center gap-2 text-[11px] text-ash">
+        <p className="flex items-center gap-2 text-[0.6875rem] text-ash">
           <Users className="size-3.5" />
           {t("roster.pickGameFirst")}
         </p>

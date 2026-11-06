@@ -25,10 +25,12 @@ import {
   EMPTY_DRAFT,
   STEPS,
   STEP_COUNT,
-  applyPositionRoles,
+  countRoles,
+  effectiveLeaderIndex,
   isStepValid,
   normaliseMember,
-  resizeMembers,
+  resolveRole,
+  resizeRoster,
   stepSummary,
   toPayload,
   validateDraft,
@@ -44,6 +46,7 @@ import { StepRoster } from "./step-roster";
 import { StepReview } from "./step-review";
 import { SuccessPanel, type SubmissionResult } from "./success-panel";
 import { useDuplicateWatch, type DuplicateWatch } from "./use-duplicate-watch";
+import type { LiveRosterState } from "./types";
 import { useLanguage } from "./language-provider";
 import { STEP_BLURB_KEYS, STEP_TITLE_KEYS } from "@/lib/i18n";
 
@@ -91,6 +94,14 @@ type DuplicateErrorKey = "dupError.teamName" | "dupError.email" | "dupError.stud
  */
 const DRAFT_KEY = "ksu-crown.draft.v4";
 const LEGACY_DRAFT_KEY = "ksu-crown.draft.v3";
+/**
+ * The credentials for the registration draft on the server.
+ *
+ * Kept beside the form so a reload does not orphan a draft whose links are already
+ * in three players' inboxes — without this, returning to the page would create a
+ * second draft and silently invalidate every link already sent.
+ */
+const DRAFT_LINK_KEY = "ksu-crown.draft-link.v1";
 const DRAFT_TTL_MS = 6 * 60 * 60 * 1000;
 
 function readStoredDraft(): string | null {
@@ -114,9 +125,31 @@ function readStoredDraft(): string | null {
   }
 }
 
+function readStoredDraftLink(): { id: string; secret: string } | null {
+  try {
+    const raw = window.sessionStorage.getItem(DRAFT_LINK_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { id?: unknown; secret?: unknown };
+    if (typeof parsed.id !== "string" || typeof parsed.secret !== "string") return null;
+    return { id: parsed.id, secret: parsed.secret };
+  } catch {
+    return null;
+  }
+}
+
+function storeDraftLink(link: { id: string; secret: string } | null) {
+  try {
+    if (link) window.sessionStorage.setItem(DRAFT_LINK_KEY, JSON.stringify(link));
+    else window.sessionStorage.removeItem(DRAFT_LINK_KEY);
+  } catch {
+    // Storage may be blocked; the draft then simply restarts on reload.
+  }
+}
+
 function clearStoredDraft() {
   try {
     window.sessionStorage.removeItem(DRAFT_KEY);
+    window.sessionStorage.removeItem(DRAFT_LINK_KEY);
     window.localStorage.removeItem(LEGACY_DRAFT_KEY);
   } catch {
     // Storage may be blocked.
@@ -231,6 +264,35 @@ export function RegistrationForm({
    * on screen across anything else that happens. Rendering it at display time means
    * it always reads in the language the captain is actually using.
    */
+  /**
+   * The registration draft: the server-side record that lets teammates fill in
+   * their own details *before* the captain submits, and that the review step polls
+   * so those answers appear as they arrive.
+   *
+   * The browser holds the id and the secret; the database holds only the hash of
+   * the secret, so the pair is a capability — losing it means starting a new draft,
+   * not losing a registration.
+   */
+  const [draftLink, setDraftLink] = React.useState<{ id: string; secret: string } | null>(null);
+  const [live, setLive] = React.useState<LiveRosterState>({
+    status: "idle",
+    expected: 0,
+    completed: 0,
+    pendingPositions: [],
+    error: null,
+    refresh: () => {},
+  });
+  /** Set by the first press of Submit while players are still answering. */
+  const [pendingConfirmed, setPendingConfirmed] = React.useState(false);
+  /**
+   * Whether a draft has already been requested for this visit to the review step.
+   *
+   * The rail lets the captain jump straight to Review, skipping the Continue press
+   * that normally starts the draft — so the review step has to be able to start it
+   * too. This ref is what stops those two paths from both firing and creating two
+   * drafts (and sending two rounds of email) for one roster.
+   */
+  const draftRequested = React.useRef(false);
   const [rosterNotice, setRosterNotice] = React.useState<{
     game: string;
     from: number;
@@ -267,19 +329,26 @@ export function RegistrationForm({
              saved OverWatch squad could come back at five people after the
              captain had switched to a 1v1 game. */
           const rules = rosterRulesFor(active, gameById(active, gameId));
+          /* Restore the shape the controls describe — a fixed line-up, the bench that
+             was chosen, and a coach if one was — rather than "however many rows were
+             saved". A saved roster from before the controls existed therefore comes
+             back legal instead of one row too long. */
+          const restored = stored.map((member) => normaliseMember(member, active));
+          const restoredCounts = countRoles(restored, rules);
+          const restoredMembers = resizeRoster(
+            restored,
+            rules,
+            restoredCounts.substitutes,
+            restoredCounts.coaches > 0,
+          );
 
           setDraft({
             teamName: typeof parsed.teamName === "string" ? parsed.teamName : "",
             gender: isGender(parsed.gender) ? parsed.gender : "",
             gameId,
-            members: applyPositionRoles(
-              resizeMembers(
-                stored.map((member) => normaliseMember(member, active)),
-                Math.min(rules.maxTotal, Math.max(1, stored.length || 1)),
-              ),
-              rules.starters,
-            ),
-            leaderIndex: typeof parsed.leaderIndex === "number" ? parsed.leaderIndex : null,
+            members: restoredMembers,
+            /* The registrant is the leader, always the first row. */
+            leaderIndex: restoredMembers.length > 0 ? 0 : null,
             // Consent is deliberately not restored: it is given per submission.
             consentGiven: false,
             rulesAccepted: false,
@@ -326,42 +395,30 @@ export function RegistrationForm({
           const game = gameById(config, value as string);
           if (game) {
             const rules = rosterRulesFor(config, game);
+            const rulesBefore = rosterRulesFor(config, gameById(config, current.gameId));
+            const previousLength = next.members.length;
 
-            /* Resize to the game's **starting line-up**, not merely to whatever
-               fits inside the bounds.
-              
-               The old clamp — `Math.max(starters, Math.min(maxTotal, length))` —
-               kept a five-person roster when switching to a 1v1 title, because 5
-               was inside the cap and the roster cap is larger than the squad
-               size. The captain was then told a 1v1 game needed exactly 1 starter
-               while looking at 5, which is unfixable without hand-deleting four
-               people.
-              
-               A position also means something different per game, so the roster is
-               rebuilt rather than carried over: rows beyond the new starting
-               line-up are dropped, and the captain re-adds any substitutes the
-               new game allows. */
-            const target = rules.starters;
-            const removed = Math.max(0, next.members.length - target);
+            /* The line-up is the new game's to decide; the bench and the coach are
+               kept where the new game still allows them, because the captain asked
+               for them and imposing a reset would silently discard a choice. Any
+               row the smaller game cannot hold is dropped, and `resizeRoster`
+               clamps both counts. */
+            const before = countRoles(next.members, rulesBefore);
+            next.members = resizeRoster(next.members, rules, before.substitutes, before.coaches > 0);
 
-            if (target !== next.members.length) {
-              next.members = resizeMembers(next.members, target);
-              if (next.leaderIndex !== null && next.leaderIndex >= target) next.leaderIndex = null;
-            }
+            /* The registrant is the leader, and is always the first row. */
+            next.leaderIndex = next.members.length > 0 ? 0 : null;
 
-            // A position now means a different thing, so re-derive the roles.
-            next.members = applyPositionRoles(next.members, game.squadSize);
-
-            /* A one-player roster has exactly one possible leader, so record it now
-               rather than leaving a null for validation to work around. The roster is
-               already sized to `starters`, and a 1v1 title has a bench of none, so
-               index 0 is the whole team. */
-            if (target === 1) next.leaderIndex = 0;
+            const removed = Math.max(0, previousLength - rules.starters);
 
             if (removed > 0) {
               /* Just the numbers. The sentence is built when it is shown, so it
                  follows the language rather than the moment of the change. */
-              setRosterNotice({ game: game.name, from: target + removed, to: target });
+              setRosterNotice({
+                game: game.name,
+                from: previousLength,
+                to: rules.starters,
+              });
             } else {
               setRosterNotice(null);
             }
@@ -449,6 +506,213 @@ export function RegistrationForm({
     });
   }, []);
 
+  /* ------------------------------------------------------------------ */
+  /* Draft: teammates complete their own details before submitting       */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Hand the roster to the server and email every teammate their link.
+   *
+   * Called when the captain leaves the roster step, which is the whole point of
+   * the ordering: the players answer while the captain is still on the review
+   * step, so the roster is complete by the time they press Submit. It is safe to
+   * call again — a refresh reuses the same draft and keeps anyone who has already
+   * answered, so going back to fix a role does not re-ask three players.
+   *
+   * Failure is never fatal: the review step still opens, and says plainly that the
+   * links could not be sent.
+   */
+  const startDraft = React.useCallback(async () => {
+    if (editing) return;
+
+    const rules = rosterRulesFor(config, gameById(config, draft.gameId));
+    const leaderIndex = effectiveLeaderIndex(draft, rules) ?? 0;
+    setLive((current) => ({ ...current, status: "sending", error: null }));
+
+    try {
+      const response = await fetch("/api/registrations/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          draftId: draftLink?.id,
+          secret: draftLink?.secret,
+          teamName: draft.teamName,
+          gameId: draft.gameId,
+          gender: draft.gender,
+          leaderIndex,
+          language,
+          members: draft.members.map((member) => ({
+            role: resolveRole(member, rules),
+            universityId: member.universityId,
+            email: member.email.trim(),
+          })),
+        }),
+      });
+      const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+
+      if (!response.ok || body.ok !== true) {
+        setLive((current) => ({
+          ...current,
+          status: "error",
+          error: message(
+            typeof body.error === "string" ? body.error : t("live.error"),
+          ),
+        }));
+        return;
+      }
+
+      const id = typeof body.draftId === "string" ? body.draftId : "";
+      const secret = typeof body.secret === "string" ? body.secret : "";
+      if (id && secret) setDraftLink({ id, secret });
+
+      /* Nothing has been answered yet, so every teammate starts pending. The first
+         poll replaces this with the truth; without it the panel would claim
+         everybody had finished for the four seconds before that. */
+      setLive((current) => ({
+        ...current,
+        status: "live",
+        error: null,
+        expected: Math.max(0, draft.members.length - 1),
+        completed: 0,
+        pendingPositions: draft.members
+          .map((_, index) => index)
+          .filter((index) => index !== leaderIndex),
+      }));
+    } catch {
+      setLive((current) => ({ ...current, status: "error", error: t("live.unreachable") }));
+    }
+    /* `draft` and `rules` are read fresh each call; the callback is recreated when
+       either changes, which is what keeps the roster it sends current. */
+  }, [editing, draft, config, draftLink, language, message, t]);
+
+  /* Refresh the live picture now — used after the captain presses "Refresh". */
+  const refreshLive = React.useCallback(async () => {
+    if (!draftLink) return;
+    try {
+      const response = await fetch(
+        `/api/registrations/draft/${encodeURIComponent(draftLink.id)}?secret=${encodeURIComponent(draftLink.secret)}`,
+        { cache: "no-store" },
+      );
+      const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!response.ok || body.ok !== true) return;
+
+      const serverDraft = body.draft as
+        | { members?: { position: number; completed: boolean; email: string; fullName: string; gameTag: string; studentId: string; discord: string; phone: string; requirements: { id: string; value: string }[] }[]; leaderIndex?: number }
+        | undefined;
+      const members = serverDraft?.members ?? [];
+      const leaderIndexValue = typeof serverDraft?.leaderIndex === "number" ? serverDraft.leaderIndex : 0;
+
+      /* Fold what has arrived into the roster on screen: the captain should see a
+         name appear, not a "someone finished" badge they have to act on. Matching
+         is by position *and* address, so a row the captain has since retyped is
+         never overwritten with someone else's details. */
+      setDraft((current) => {
+        let changed = false;
+        const members_ = current.members.map((member, index) => {
+          const answered = members.find((entry) => entry.position === index);
+          if (!answered?.completed) return member;
+          if (answered.email.toLowerCase() !== member.email.trim().toLowerCase()) return member;
+
+          /* Polling must not rewrite the draft on every tick: an unchanged roster
+             returns the same objects, so React bails out and the session-storage
+             autosave does not run every four seconds. */
+          if (
+            member.fullName === answered.fullName &&
+            member.gameTag === answered.gameTag &&
+            member.studentId === answered.studentId &&
+            member.discord === answered.discord &&
+            member.phone === answered.phone
+          ) {
+            return member;
+          }
+
+          changed = true;
+          return {
+            ...member,
+            fullName: answered.fullName,
+            gameTag: answered.gameTag,
+            studentId: answered.studentId,
+            discord: answered.discord,
+            phone: answered.phone,
+            requirements: {
+              ...member.requirements,
+              ...Object.fromEntries(answered.requirements.map((entry) => [entry.id, entry.value])),
+            },
+          };
+        });
+
+        return changed ? { ...current, members: members_ } : current;
+      });
+
+      const expected = members.filter((entry) => entry.position !== leaderIndexValue).length;
+      const completed = members.filter(
+        (entry) => entry.position !== leaderIndexValue && entry.completed,
+      ).length;
+
+      setLive((current) => ({
+        ...current,
+        status: "live",
+        expected,
+        completed,
+        pendingPositions: members
+          .filter((entry) => entry.position !== leaderIndexValue && !entry.completed)
+          .map((entry) => entry.position),
+        error: null,
+      }));
+    } catch {
+      // A dropped poll is not worth a message; the next one will report the truth.
+    }
+  }, [draftLink]);
+
+  /* Remember the credentials for as long as the form is open, so a reload rejoins
+     the same draft instead of invalidating the links already sent. */
+  React.useEffect(() => {
+    storeDraftLink(draftLink);
+  }, [draftLink]);
+
+  /* Restored once, lazily: only in the browser, and only for a form that is not
+     editing somebody else's registration. */
+  React.useEffect(() => {
+    if (editing) return;
+    const stored = readStoredDraftLink();
+    if (stored) setDraftLink(stored);
+  }, [editing]);
+
+  /* The state carries the answers; the action is attached at render time so the
+     object handed to the review step is always current. */
+  const liveState: LiveRosterState = {
+    ...live,
+    /* Without a draft there is nothing to poll — the retry is another attempt to
+       create it, so the "already asked" guard is released first. */
+    refresh: () => {
+      if (draftLink) {
+        void refreshLive();
+        return;
+      }
+      draftRequested.current = false;
+      void startDraft();
+    },
+  };
+
+  /* Reached Review without passing through Continue — start the draft here instead,
+     once. A failure leaves `draftLink` empty but the ref set, so this does not spin:
+     the panel offers a retry, which resets the ref. */
+  React.useEffect(() => {
+    if (editing || result || step !== STEP_COUNT - 1 || draftLink || draftRequested.current) return;
+    draftRequested.current = true;
+    void startDraft();
+  }, [editing, result, step, draftLink, startDraft]);
+
+  /* Poll while the review step is open. Four seconds is fast enough to feel live
+     and slow enough that a class of captains on one Wi-Fi does not look like an
+     attack. */
+  React.useEffect(() => {
+    if (editing || !draftLink || result || step !== STEP_COUNT - 1) return;
+    void refreshLive();
+    const timer = setInterval(() => void refreshLive(), 4000);
+    return () => clearInterval(timer);
+  }, [editing, draftLink, result, step, refreshLive]);
+
   /**
    * Move on, or — if this step is not finished — reveal what is missing.
    *
@@ -467,6 +731,16 @@ export function RegistrationForm({
       setAttempted((current) => new Set(current).add(step));
       return;
     }
+
+    /* Leaving the roster is the moment the teammates can be asked: everything the
+       captain owes them (role, university, address) is now known, and the players
+       answer while the review step is open. Started here rather than on a timer so
+       it always describes the roster that was actually accepted. */
+    if (step === 2) {
+      draftRequested.current = true;
+      void startDraft();
+    }
+
     goToStep(step + 1);
   };
 
@@ -485,6 +759,16 @@ export function RegistrationForm({
       return;
     }
 
+    /* Players were asked before submission, so by now most rosters are complete.
+       When one has not answered yet the captain is told once — pressing Submit
+       again registers anyway. Blocking outright would let one unread email strand
+       a whole team, and the links stay valid either way. */
+    const pendingPlayers = live.status === "live" ? live.pendingPositions.length : 0;
+    if (pendingPlayers > 0 && !pendingConfirmed) {
+      setPendingConfirmed(true);
+      return;
+    }
+
     setSubmitting(true);
     setServerError(null);
     setConflicts([]);
@@ -499,7 +783,19 @@ export function RegistrationForm({
         headers: { "Content-Type": "application/json" },
         /* `language` rides alongside the payload so the confirmation email is written
          in the language the captain used. Validation ignores keys it does not know. */
-        body: JSON.stringify(editing ? { proof: editProof, payload, language } : { ...payload, language }),
+        /* The draft credentials ride along so the server can fold in the details the
+           teammates entered, and carry their completion tokens into the stored team.
+           They are a capability: the id alone opens nothing. */
+        body: JSON.stringify(
+          editing
+            ? { proof: editProof, payload, language }
+            : {
+                ...payload,
+                language,
+                draftId: draftLink?.id,
+                draftSecret: draftLink?.secret,
+              },
+        ),
       });
       const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
 
@@ -542,6 +838,20 @@ export function RegistrationForm({
     setServerError(null);
     setConflicts([]);
     setStep(0);
+
+    /* A new team is a new draft: keeping the previous credentials would write the
+       next roster over the one whose links are already in players' inboxes. */
+    draftRequested.current = false;
+    setDraftLink(null);
+    setPendingConfirmed(false);
+    setLive({
+      status: "idle",
+      expected: 0,
+      completed: 0,
+      pendingPositions: [],
+      error: null,
+      refresh: () => {},
+    });
   };
 
   /* ------------------------------------------------------------------ */
@@ -566,6 +876,7 @@ export function RegistrationForm({
     rulebooks,
     gamesRead,
     onOpenRulebook,
+    live: liveState,
   };
   const stepBody = [
     <StepTeam key="team" {...stepProps} />,
@@ -580,13 +891,13 @@ export function RegistrationForm({
   return (
     <div ref={panelRef} className="scroll-mt-8">
       {result ? (
-        <SuccessPanel result={result} onStartOver={startOver} />
+        <SuccessPanel result={result} discordInviteUrl={config.discordInviteUrl} onStartOver={startOver} />
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[248px_1fr]">
+        <div className="grid gap-6 lg:grid-cols-[15.5rem_1fr]">
           {/* --------------------------- Step rail --------------------------- */}
           <aside className="lg:sticky lg:top-8 lg:self-start">
             <div className="mb-3 lg:hidden">
-              <div className="mb-2 flex items-center justify-between text-[11px] font-bold tracking-[0.14em] text-ash uppercase">
+              <div className="mb-2 flex items-center justify-between text-[0.6875rem] font-bold tracking-[0.14em] text-ash uppercase">
                 <span>{t("wizard.stepOf", { step: step + 1, total: STEP_COUNT })}</span>
                 <span className="text-brand">{t(STEP_TITLE_KEYS[step])}</span>
               </div>
@@ -624,12 +935,12 @@ export function RegistrationForm({
                       >
                         <span
                           className={cn(
-                            "flex size-7 shrink-0 items-center justify-center rounded-lg border font-mono text-[11px] transition-colors",
+                            "flex size-7 shrink-0 items-center justify-center rounded-lg border font-mono text-[0.6875rem] transition-colors",
                             active
                               ? "border-brand bg-brand text-wall-950"
                               : done
                                 ? "border-brand/50 bg-brand/15 text-brand"
-                                : "border-[rgba(148,196,208,0.22)] text-ash",
+                                : "border-[rgba(79, 182, 208,0.22)] text-ash",
                           )}
                         >
                           {done ? <Check className="size-3.5" /> : index + 1}
@@ -638,7 +949,7 @@ export function RegistrationForm({
                           <span className="block truncate text-xs font-bold tracking-wide">
                             {t(STEP_TITLE_KEYS[index])}
                           </span>
-                          <span className="block truncate text-[10px] text-ash/70">
+                          <span className="block truncate text-[0.625rem] text-ash/70">
                             {t(STEP_BLURB_KEYS[index])}
                           </span>
                         </span>
@@ -648,8 +959,8 @@ export function RegistrationForm({
                 })}
               </ol>
 
-              <div className="mt-3 border-t border-[rgba(148,196,208,0.12)] pt-3">
-                <div className="flex items-center gap-2 px-3 text-[11px] text-ash">
+              <div className="mt-3 border-t border-[rgba(79, 182, 208,0.12)] pt-3">
+                <div className="flex items-center gap-2 px-3 text-[0.6875rem] text-ash">
                   <KsuCrownMark size="sm" className="opacity-70" />
                   <span>
                     {formValid
@@ -664,7 +975,7 @@ export function RegistrationForm({
           {/* ---------------------------- Content ---------------------------- */}
           <main className="min-w-0">
             <div className="panel overflow-hidden rounded-3xl">
-              <div className="relative border-b border-[rgba(148,196,208,0.12)] px-5 py-4 sm:px-7">
+              <div className="relative border-b border-[rgba(79, 182, 208,0.12)] px-5 py-4 sm:px-7">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-display tracking-wide text-snow">
@@ -672,7 +983,7 @@ export function RegistrationForm({
                     </h2>
                     <p className="mt-0.5 text-xs text-ash">{t(STEP_BLURB_KEYS[step])}</p>
                   </div>
-                  <span className="font-mono text-[11px] text-ash">
+                  <span className="font-mono text-[0.6875rem] text-ash">
                     {String(step + 1).padStart(2, "0")} / {String(STEP_COUNT).padStart(2, "0")}
                   </span>
                 </div>
@@ -687,7 +998,7 @@ export function RegistrationForm({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="ms-auto h-7 px-2 text-[11px]"
+                    className="ms-auto h-7 px-2 text-[0.6875rem]"
                     onClick={startOver}
                   >
                     <X className="size-3" />
@@ -697,12 +1008,20 @@ export function RegistrationForm({
               )}
 
               <div className="px-5 py-6 sm:px-7 sm:py-8">
+                {/* Repeated inside the form, because the landing page is one screen
+                    back by the time the captain is filling this in. */}
+                {!editing && step === 0 && (
+                  <p className="mb-5 flex items-start gap-2 rounded-xl border border-amber-400/45 bg-amber-400/10 px-3 py-2.5 text-[0.6875rem] leading-relaxed text-amber-100/90">
+                    <AlertCircle className="mt-px size-3.5 shrink-0 text-amber-300" />
+                    <span>{t("home.leaderWarning")}</span>
+                  </p>
+                )}
                 {/* Switching game can resize the roster; say so rather than
                     letting members vanish quietly. */}
                 {rosterNotice && (
                   <div className="mb-5 flex flex-wrap items-start gap-3 rounded-xl border border-amber-400/35 bg-amber-400/8 px-3 py-2.5">
                     <Users className="mt-px size-3.5 shrink-0 text-amber-300" />
-                    <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-amber-100/90">
+                    <p className="min-w-0 flex-1 text-[0.6875rem] leading-relaxed text-amber-100/90">
                       {t(rosterNotice.to === 1 ? "roster.trimmedOne" : "roster.trimmed", {
                         game: rosterNotice.game,
                         count: rosterNotice.to,
@@ -726,7 +1045,7 @@ export function RegistrationForm({
                 <RevealFieldErrors when={attempted.has(step)}>{stepBody}</RevealFieldErrors>
               </div>
 
-              <div className="border-t border-[rgba(148,196,208,0.12)] bg-wall-950/40 px-5 py-4 sm:px-7">
+              <div className="border-t border-[rgba(79, 182, 208,0.12)] bg-wall-950/40 px-5 py-4 sm:px-7">
                 {serverError && (
                   <div className="mb-4 rounded-xl border border-danger/45 bg-danger/10 p-3">
                     <p className="flex items-start gap-2 text-xs text-danger">
@@ -736,7 +1055,7 @@ export function RegistrationForm({
                     {conflicts.length > 0 && (
                       <ul className="mt-2 space-y-1 ps-5">
                         {conflicts.map((conflict) => (
-                          <li key={conflict} className="text-[11px] text-danger/80">
+                          <li key={conflict} className="text-[0.6875rem] text-danger/80">
                             • {conflict}
                           </li>
                         ))}
@@ -756,10 +1075,30 @@ export function RegistrationForm({
                     while the identical field error beside it — which goes through
                     `translateErrorMap` — read "اختر لعبة". */}
                 {!canAdvance && attempted.has(step) && stepSummaryText && (
-                  <p className="mb-3 flex items-center gap-2 text-[11px] text-amber-300">
+                  <p className="mb-3 flex items-center gap-2 text-[0.6875rem] text-amber-300">
                     <AlertCircle className="size-3.5 shrink-0" />
                     {message(stepSummaryText)}
                   </p>
+                )}
+
+                {/* The players were asked before this step, so an incomplete roster
+                    here is a player who has not answered yet. Said once, with the
+                    consequence spelled out: pressing Submit again registers anyway. */}
+                {isReview && pendingConfirmed && live.pendingPositions.length > 0 && (
+                  <div className="mb-3 rounded-xl border border-amber-400/40 bg-amber-400/8 px-3 py-2">
+                    <p className="flex items-start gap-2 text-[0.6875rem] leading-relaxed text-amber-100/90">
+                      <AlertCircle className="mt-px size-3.5 shrink-0 text-amber-300" />
+                      {live.pendingPositions.length === 1
+                        ? t("live.submitWarning", {
+                            pending: 1,
+                            total: live.expected,
+                          })
+                        : t("live.submitWarning", {
+                            pending: live.pendingPositions.length,
+                            total: live.expected,
+                          })}
+                    </p>
+                  </div>
                 )}
 
                 <div className="flex flex-wrap items-center gap-3">

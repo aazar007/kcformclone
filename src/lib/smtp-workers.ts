@@ -250,11 +250,15 @@ export async function sendViaWorkersSmtp(options: WorkersSmtpOptions): Promise<v
     await writer.write(dataPayload(options.message));
     await expect("message body", [250]);
 
+    /* The message is accepted at this point — the `250` above is the relay taking
+       responsibility for it. Waiting for a reply to QUIT adds up to `stepTimeoutMs`
+       per message on a relay that does not bother to answer a goodbye, and a
+       registration sends one message per member. Send it and move on; the socket is
+       closed in `finally` either way. */
     try {
       await send("QUIT");
-      await reader.next("QUIT", 3_000);
     } catch {
-      /* The message is already accepted; a slow goodbye changes nothing. */
+      /* Nothing to do: the message is already accepted. */
     }
   } finally {
     reader.release();

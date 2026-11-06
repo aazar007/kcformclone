@@ -21,9 +21,9 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'2c5a1956cfb4129c981639fe078e9f1ab480df9c9d2c5bab739198da6e7b4c41'>;
+  StorageHashBase<'a5e56c384769fb45c77705cfdbadcf36aa0529bea90cd84153390ad6fc502ac0'>;
 export type ExecutionHash =
-  ExecutionHashBase<'8f670c21750acafd5f1b0774f5c72968e3e6916c60cb314dbf8da7a38152f4ec'>;
+  ExecutionHashBase<'f51066fc44b9dbdb9f07e0e57a24cb3792054b6992adf9e46a57952193dcdaf0'>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
 
@@ -258,9 +258,11 @@ export type FieldOutputTypes = {
       readonly width: CodecTypes['pg/int4@1']['output'];
     };
     readonly Member: {
+      readonly confirmTokenHash: CodecTypes['pg/text@1']['output'] | null;
       readonly createdAt: TimestampString<3>;
       readonly discord: CodecTypes['pg/text@1']['output'];
       readonly email: CodecTypes['pg/text@1']['output'];
+      readonly emailConfirmedAt: TimestampString<3> | null;
       readonly fullName: CodecTypes['pg/text@1']['output'];
       readonly gameTag: CodecTypes['pg/text@1']['output'];
       readonly id: CodecTypes['pg/text@1']['output'];
@@ -291,6 +293,15 @@ export type FieldOutputTypes = {
       readonly size: CodecTypes['pg/int4@1']['output'];
       readonly title: CodecTypes['pg/text@1']['output'];
       readonly updatedAt: TimestampString<3>;
+    };
+    readonly SponsorLogo: {
+      readonly bytes: CodecTypes['pg/bytea@1']['output'];
+      readonly height: CodecTypes['pg/int4@1']['output'];
+      readonly mimeType: CodecTypes['pg/text@1']['output'];
+      readonly size: CodecTypes['pg/int4@1']['output'];
+      readonly sponsorId: CodecTypes['pg/text@1']['output'];
+      readonly updatedAt: TimestampString<3>;
+      readonly width: CodecTypes['pg/int4@1']['output'];
     };
     readonly StaffAccess: {
       readonly addedAt: TimestampString<3>;
@@ -339,9 +350,11 @@ export type FieldInputTypes = {
       readonly width: CodecTypes['pg/int4@1']['input'];
     };
     readonly Member: {
+      readonly confirmTokenHash: CodecTypes['pg/text@1']['input'] | null;
       readonly createdAt: CodecTypes['pg/timestamp-string@1']['input'];
       readonly discord: CodecTypes['pg/text@1']['input'];
       readonly email: CodecTypes['pg/text@1']['input'];
+      readonly emailConfirmedAt: CodecTypes['pg/timestamp-string@1']['input'] | null;
       readonly fullName: CodecTypes['pg/text@1']['input'];
       readonly gameTag: CodecTypes['pg/text@1']['input'];
       readonly id: CodecTypes['pg/text@1']['input'];
@@ -372,6 +385,15 @@ export type FieldInputTypes = {
       readonly size: CodecTypes['pg/int4@1']['input'];
       readonly title: CodecTypes['pg/text@1']['input'];
       readonly updatedAt: CodecTypes['pg/timestamp-string@1']['input'];
+    };
+    readonly SponsorLogo: {
+      readonly bytes: CodecTypes['pg/bytea@1']['input'];
+      readonly height: CodecTypes['pg/int4@1']['input'];
+      readonly mimeType: CodecTypes['pg/text@1']['input'];
+      readonly size: CodecTypes['pg/int4@1']['input'];
+      readonly sponsorId: CodecTypes['pg/text@1']['input'];
+      readonly updatedAt: CodecTypes['pg/timestamp-string@1']['input'];
+      readonly width: CodecTypes['pg/int4@1']['input'];
     };
     readonly StaffAccess: {
       readonly addedAt: CodecTypes['pg/timestamp-string@1']['input'];
@@ -420,9 +442,11 @@ export type StorageColumnTypes = {
       readonly width: CodecTypes['pg/int4@1']['output'];
     };
     readonly Member: {
+      readonly confirmTokenHash: CodecTypes['pg/text@1']['output'] | null;
       readonly createdAt: TimestampString<3>;
       readonly discord: CodecTypes['pg/text@1']['output'];
       readonly email: CodecTypes['pg/text@1']['output'];
+      readonly emailConfirmedAt: TimestampString<3> | null;
       readonly fullName: CodecTypes['pg/text@1']['output'];
       readonly gameTag: CodecTypes['pg/text@1']['output'];
       readonly id: CodecTypes['pg/text@1']['output'];
@@ -453,6 +477,15 @@ export type StorageColumnTypes = {
       readonly size: CodecTypes['pg/int4@1']['output'];
       readonly title: CodecTypes['pg/text@1']['output'];
       readonly updatedAt: TimestampString<3>;
+    };
+    readonly SponsorLogo: {
+      readonly bytes: CodecTypes['pg/bytea@1']['output'];
+      readonly height: CodecTypes['pg/int4@1']['output'];
+      readonly mimeType: CodecTypes['pg/text@1']['output'];
+      readonly size: CodecTypes['pg/int4@1']['output'];
+      readonly sponsorId: CodecTypes['pg/text@1']['output'];
+      readonly updatedAt: TimestampString<3>;
+      readonly width: CodecTypes['pg/int4@1']['output'];
     };
     readonly StaffAccess: {
       readonly addedAt: TimestampString<3>;
@@ -501,9 +534,11 @@ export type StorageColumnInputTypes = {
       readonly width: CodecTypes['pg/int4@1']['input'];
     };
     readonly Member: {
+      readonly confirmTokenHash: CodecTypes['pg/text@1']['input'] | null;
       readonly createdAt: CodecTypes['pg/timestamp-string@1']['input'];
       readonly discord: CodecTypes['pg/text@1']['input'];
       readonly email: CodecTypes['pg/text@1']['input'];
+      readonly emailConfirmedAt: CodecTypes['pg/timestamp-string@1']['input'] | null;
       readonly fullName: CodecTypes['pg/text@1']['input'];
       readonly gameTag: CodecTypes['pg/text@1']['input'];
       readonly id: CodecTypes['pg/text@1']['input'];
@@ -534,6 +569,15 @@ export type StorageColumnInputTypes = {
       readonly size: CodecTypes['pg/int4@1']['input'];
       readonly title: CodecTypes['pg/text@1']['input'];
       readonly updatedAt: CodecTypes['pg/timestamp-string@1']['input'];
+    };
+    readonly SponsorLogo: {
+      readonly bytes: CodecTypes['pg/bytea@1']['input'];
+      readonly height: CodecTypes['pg/int4@1']['input'];
+      readonly mimeType: CodecTypes['pg/text@1']['input'];
+      readonly size: CodecTypes['pg/int4@1']['input'];
+      readonly sponsorId: CodecTypes['pg/text@1']['input'];
+      readonly updatedAt: CodecTypes['pg/timestamp-string@1']['input'];
+      readonly width: CodecTypes['pg/int4@1']['input'];
     };
     readonly StaffAccess: {
       readonly addedAt: CodecTypes['pg/timestamp-string@1']['input'];
@@ -585,9 +629,11 @@ export namespace Models {
     readonly [RelationKeys]?: never;
   };
   export type public_Member = {
+    confirmTokenHash: CodecTypes['pg/text@1']['output'] | null;
     createdAt: TimestampString<3>;
     discord: CodecTypes['pg/text@1']['output'];
     email: CodecTypes['pg/text@1']['output'];
+    emailConfirmedAt: TimestampString<3> | null;
     fullName: CodecTypes['pg/text@1']['output'];
     gameTag: CodecTypes['pg/text@1']['output'];
     id: CodecTypes['pg/text@1']['output'];
@@ -621,6 +667,16 @@ export namespace Models {
     size: CodecTypes['pg/int4@1']['output'];
     title: CodecTypes['pg/text@1']['output'];
     updatedAt: TimestampString<3>;
+    readonly [RelationKeys]?: never;
+  };
+  export type public_SponsorLogo = {
+    bytes: CodecTypes['pg/bytea@1']['output'];
+    height: CodecTypes['pg/int4@1']['output'];
+    mimeType: CodecTypes['pg/text@1']['output'];
+    size: CodecTypes['pg/int4@1']['output'];
+    sponsorId: CodecTypes['pg/text@1']['output'];
+    updatedAt: TimestampString<3>;
+    width: CodecTypes['pg/int4@1']['output'];
     readonly [RelationKeys]?: never;
   };
   export type public_StaffAccess = {
@@ -658,6 +714,7 @@ export declare const models: {
     Member: Models.public_Member;
     OtpCode: Models.public_OtpCode;
     Rulebook: Models.public_Rulebook;
+    SponsorLogo: Models.public_SponsorLogo;
     StaffAccess: Models.public_StaffAccess;
     Team: Models.public_Team;
   };
@@ -806,6 +863,12 @@ type ContractBase = Omit<
             };
             readonly Member: {
               columns: {
+                readonly confirmTokenHash: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
                 readonly createdAt: {
                   readonly dataType: 'pg/timestamp';
                   readonly codecId: 'pg/timestamp-string@1';
@@ -824,6 +887,13 @@ type ContractBase = Omit<
                   readonly dataType: 'pg/text';
                   readonly codecId: 'pg/text@1';
                   readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly emailConfirmedAt: {
+                  readonly dataType: 'pg/timestamp';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly nullable: true;
+                  readonly typeParams: { readonly precision: 3 };
                   readonly many: false;
                 };
                 readonly fullName: {
@@ -914,6 +984,11 @@ type ContractBase = Omit<
               primaryKey: { readonly columns: readonly ['id'] };
               uniques: readonly [];
               indexes: readonly [
+                {
+                  readonly name: 'Member_confirmTokenHash_key';
+                  readonly columns: readonly ['confirmTokenHash'];
+                  readonly unique: true;
+                },
                 {
                   readonly name: 'Member_email_key';
                   readonly columns: readonly ['email'];
@@ -1075,6 +1150,57 @@ type ContractBase = Omit<
                 };
               };
               primaryKey: { readonly columns: readonly ['gameId'] };
+              uniques: readonly [];
+              indexes: readonly [];
+              foreignKeys: readonly [];
+            };
+            readonly SponsorLogo: {
+              columns: {
+                readonly bytes: {
+                  readonly dataType: 'pg/bytea';
+                  readonly codecId: 'pg/bytea@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly height: {
+                  readonly dataType: 'pg/int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly mimeType: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly size: {
+                  readonly dataType: 'pg/int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly sponsorId: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly updatedAt: {
+                  readonly dataType: 'pg/timestamp';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly nullable: false;
+                  readonly typeParams: { readonly precision: 3 };
+                  readonly many: false;
+                };
+                readonly width: {
+                  readonly dataType: 'pg/int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+              };
+              primaryKey: { readonly columns: readonly ['sponsorId'] };
               uniques: readonly [];
               indexes: readonly [];
               foreignKeys: readonly [];
@@ -1271,6 +1397,10 @@ type ContractBase = Omit<
     readonly Member: { readonly namespace: 'public' & NamespaceId; readonly model: 'Member' };
     readonly OtpCode: { readonly namespace: 'public' & NamespaceId; readonly model: 'OtpCode' };
     readonly Rulebook: { readonly namespace: 'public' & NamespaceId; readonly model: 'Rulebook' };
+    readonly SponsorLogo: {
+      readonly namespace: 'public' & NamespaceId;
+      readonly model: 'SponsorLogo';
+    };
     readonly StaffAccess: {
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'StaffAccess';
@@ -1398,6 +1528,10 @@ type ContractBase = Omit<
           };
           readonly Member: {
             readonly fields: {
+              readonly confirmTokenHash: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
               readonly createdAt: {
                 readonly nullable: false;
                 readonly type: {
@@ -1413,6 +1547,14 @@ type ContractBase = Omit<
               readonly email: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly emailConfirmedAt: {
+                readonly nullable: true;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
               };
               readonly fullName: {
                 readonly nullable: false;
@@ -1478,9 +1620,11 @@ type ContractBase = Omit<
               readonly table: 'Member';
               readonly namespaceId: 'public';
               readonly fields: {
+                readonly confirmTokenHash: { readonly column: 'confirmTokenHash' };
                 readonly createdAt: { readonly column: 'createdAt' };
                 readonly discord: { readonly column: 'discord' };
                 readonly email: { readonly column: 'email' };
+                readonly emailConfirmedAt: { readonly column: 'emailConfirmedAt' };
                 readonly fullName: { readonly column: 'fullName' };
                 readonly gameTag: { readonly column: 'gameTag' };
                 readonly id: { readonly column: 'id' };
@@ -1601,6 +1745,56 @@ type ContractBase = Omit<
                 readonly size: { readonly column: 'size' };
                 readonly title: { readonly column: 'title' };
                 readonly updatedAt: { readonly column: 'updatedAt' };
+              };
+            };
+          };
+          readonly SponsorLogo: {
+            readonly fields: {
+              readonly bytes: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bytea@1' };
+              };
+              readonly height: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly mimeType: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly size: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly sponsorId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly updatedAt: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
+              };
+              readonly width: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+            };
+            readonly relations: Record<string, never>;
+            readonly storage: {
+              readonly table: 'SponsorLogo';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly bytes: { readonly column: 'bytes' };
+                readonly height: { readonly column: 'height' };
+                readonly mimeType: { readonly column: 'mimeType' };
+                readonly size: { readonly column: 'size' };
+                readonly sponsorId: { readonly column: 'sponsorId' };
+                readonly updatedAt: { readonly column: 'updatedAt' };
+                readonly width: { readonly column: 'width' };
               };
             };
           };
@@ -1836,6 +2030,15 @@ type ContractBase = Omit<
           readonly onUpdate: { readonly id: 'timestampNow'; readonly kind: 'generator' };
           readonly ref: {
             readonly entry: 'Rulebook';
+            readonly field: 'updatedAt';
+            readonly namespace: 'public';
+          };
+        },
+        {
+          readonly onCreate: { readonly id: 'timestampNow'; readonly kind: 'generator' };
+          readonly onUpdate: { readonly id: 'timestampNow'; readonly kind: 'generator' };
+          readonly ref: {
+            readonly entry: 'SponsorLogo';
             readonly field: 'updatedAt';
             readonly namespace: 'public';
           };

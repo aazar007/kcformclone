@@ -18,7 +18,9 @@ import { escapeHtml, mailerAllowsLogFallback, mailerConfigured, sendMail } from 
 import { emailCopy, emailDirection, fill, type EmailCopy } from "./email-copy";
 import { DEFAULT_LANGUAGE, arabicDigits, type Language } from "./i18n";
 import { appUrl } from "./app-url";
-import type { StoredTeam } from "./store";
+import { generateConfirmToken, hashConfirmToken, memberConfirmUrl } from "./confirm-token";
+import { setDraftMemberToken } from "./draft-store";
+import { setMemberConfirmToken, type StoredMember, type StoredTeam } from "./store";
 
 /** The Content-ID the template references; must match the attachment. */
 export const LOGO_CID = "ksucrownlogo";
@@ -46,7 +48,7 @@ const EMAIL_LOGO_MAX_BYTES = 36 * 1024;
 const INK = "#eaf7fb";
 const BODY = "#9fc0cc";
 const MUTED = "#7ba0ad";
-const CYAN = "#5cf0f7";
+const CYAN = "#4fb6d0";
 const CARD = "#0d2a37";
 const WALL = "#0b1a20";
 const LINE = "#1c4a5a";
@@ -176,7 +178,7 @@ function memberCard(team: StoredTeam, index: number, copy: EmailCopy, rtl: boole
             <tr>
               <td align="${rtl ? "right" : "left"}" style="vertical-align:middle;">
                 <span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:7px;background:${isLeader ? CYAN : "#1d3d49"};color:${isLeader ? "#06212a" : MUTED};font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;font-weight:700;">${index + 1}</span>
-                <span style="margin-${rtl ? "right" : "left"}:8px;font-size:14px;font-weight:700;color:${INK};">${escapeHtml(member.fullName)}</span>
+                <span style="margin-${rtl ? "right" : "left"}:8px;font-size:14px;font-weight:700;color:${INK};">${escapeHtml(member.fullName || member.email || "")}</span>
                 ${isLeader ? `<span style="margin-${rtl ? "right" : "left"}:8px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${CYAN};">${copy.teamLeader}</span>` : ""}
               </td>
               <td align="${rtl ? "left" : "right"}" style="vertical-align:middle;">
@@ -433,7 +435,7 @@ export function buildConfirmationEmail(
   team.members.forEach((member, index) => {
     const isLeader = index === team.leaderIndex;
     textLines.push(
-      `${num(index + 1)}. ${member.fullName}${
+      `${num(index + 1)}. ${member.fullName || member.email || ""}${
         isLeader ? ` ${copy.textLeaderSuffix}` : ""
       } — ${roleLabel(member.role, copy)}`,
       `   ${copy.textUniversity} : ${member.universityName}${member.universityRegion ? ` · ${member.universityRegion}` : ""}`,
@@ -594,4 +596,331 @@ export async function sendRegistrationConfirmation(
     console.error(`[mailer] confirmation for ${team.reference} failed:`, error);
     return false;
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Member confirmation                                                        */
+/* -------------------------------------------------------------------------- */
+
+export interface MemberConfirmationEmail {
+  subject: string;
+  html: string;
+  text: string;
+}
+
+/**
+ * The message a teammate receives, whether or not the team has been submitted.
+ *
+ * Deliberately one button and almost no detail: the recipient has to be able to
+ * recognise the team, trust the link, and press it. The team name and their own
+ * address are enough to do that — and neither depends on a database row, so the
+ * same template serves a draft ("the captain is still finishing the form") and a
+ * stored team ("your place is on file").
+ */
+export function buildMemberConfirmationEmail(
+  team: { teamName: string; tournamentName: string },
+  member: { fullName?: string | null; email?: string | null },
+  options: { confirmUrl: string; privacyUrl: string; language: Language },
+): MemberConfirmationEmail {
+  const { confirmUrl, privacyUrl, language } = options;
+  const copy = emailCopy(language);
+  const rtl = language === "ar";
+  const dir = emailDirection(language);
+  const subject = fill(copy.subjectMemberConfirm, { team: team.teamName });
+  const teamLabel = rtl ? "الفريق" : "Team";
+  /* Only a link: the policy itself is never copied into the message. Splitting the
+     sentence on the placeholder keeps every literal part escaped. */
+  const consentHtml = copy.memberConfirmConsent
+    .split("{link}")
+    .map((part) => escapeHtml(part))
+    .join(
+      `<a href="${escapeHtml(privacyUrl)}" style="color:${CYAN};text-decoration:underline;">${escapeHtml(copy.memberConfirmPrivacyLink)}</a>`,
+    );
+  const consentText = `${copy.memberConfirmConsent.replace("{link}", copy.memberConfirmPrivacyLink)}\n${privacyUrl}`;
+
+
+  const html = `<!doctype html>
+<html lang="${language}" dir="${dir}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>${escapeHtml(subject)}</title>
+  </head>
+  <body dir="${dir}" style="margin:0;padding:0;background:${WALL};direction:${dir};">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" dir="${dir}" style="background:${WALL};padding:28px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#082330;border:1px solid ${LINE};border-radius:18px;overflow:hidden;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;">
+            <tr>
+              <td style="padding:28px 26px 0;">
+                <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:${CYAN};">${escapeHtml(team.tournamentName)}</p>
+                <h1 style="margin:12px 0 0;font-size:24px;line-height:1.3;color:#ffffff;">${escapeHtml(copy.memberConfirmHeading)}</h1>
+                <p style="margin:12px 0 0;font-size:14px;line-height:1.75;color:${BODY};">
+                  ${escapeHtml(fill(copy.memberConfirmLead, { team: team.teamName, tournament: team.tournamentName }))}
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:22px 26px 0;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CARD};border:1px solid ${LINE};border-radius:12px;">
+                  <tr>
+                    <td align="${rtl ? "right" : "left"}" style="padding:12px 14px;">
+                      <p style="margin:0;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:${MUTED};">${escapeHtml(teamLabel)}</p>
+                      <p style="margin:6px 0 0;font-size:14px;font-weight:700;color:${INK};">${escapeHtml(team.teamName)}</p>
+                      <p style="margin:4px 0 0;font-size:13px;color:${BODY};">${escapeHtml(member.fullName || member.email || "")}</p>
+                      <p dir="ltr" style="margin:6px 0 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:${CYAN};text-align:${rtl ? "right" : "left"};">${escapeHtml(member.email ?? "")}</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:22px 26px 0;">
+                <a href="${escapeHtml(confirmUrl)}" style="display:inline-block;padding:14px 30px;border-radius:11px;background:${CYAN};color:#04222a;font-size:15px;font-weight:700;text-decoration:none;">${escapeHtml(copy.memberConfirmCta)}</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 26px 0;">
+                <p style="margin:0;font-size:12px;line-height:1.7;color:${MUTED};">${escapeHtml(copy.memberConfirmNote)}</p>
+                <p style="margin:12px 0 0;font-size:12px;line-height:1.7;color:${BODY};">${consentHtml}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:26px;">
+                <div style="height:1px;background:${LINE};margin-bottom:16px;"></div>
+                <p style="margin:0;font-size:11px;line-height:1.7;color:${MUTED};">${escapeHtml(copy.memberConfirmFooter)}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  const text = [
+    team.tournamentName,
+    copy.memberConfirmHeading,
+    "",
+    fill(copy.memberConfirmLead, { team: team.teamName, tournament: team.tournamentName }),
+    "",
+    `${teamLabel}: ${team.teamName}`,
+    `${member.fullName || member.email || ""} — ${member.email ?? ""}`,
+    "",
+    `${copy.memberConfirmCta}: ${confirmUrl}`,
+    "",
+    copy.memberConfirmNote,
+    "",
+    consentText,
+    "",
+    copy.memberConfirmFooter,
+  ].join("\n");
+
+  return { subject, html: minifyHtml(html), text };
+}
+
+/**
+ * Whether confirmation mail can actually leave this deployment.
+ *
+ * Used by the routes to tell the captain what to expect *before* the send
+ * finishes, because the send now happens after the response is flushed.
+ */
+export async function confirmationMailerReady(): Promise<boolean> {
+  return (
+    (await mailerConfigured("confirmation")) || (await mailerAllowsLogFallback("confirmation"))
+  );
+}
+
+/**
+ * Members who will be asked to complete their own details.
+ *
+ * Exported so a route can say how many links are on their way without waiting for
+ * the sends, and so the count is derived from the same rule the sender uses.
+ */
+export function pendingMemberConfirmations(team: StoredTeam): StoredMember[] {
+  return team.members.filter(
+    (member, index) =>
+      index !== team.leaderIndex &&
+      Boolean(member.email) &&
+      member.emailConfirmedAt === null &&
+      member.confirmTokenHash === null,
+  );
+}
+
+/**
+ * Run `work` over `items` with a bounded number in flight.
+ *
+ * A roster is small, but the sends are network-bound and independent: running them
+ * one at a time meant every member waited for the full SMTP exchange of the member
+ * before them, which is why the last confirmation link could arrive minutes after
+ * the first. The cap exists so a large edit does not open a connection per player
+ * at once.
+ */
+async function eachConcurrently<T>(
+  items: T[],
+  limit: number,
+  work: (item: T) => Promise<void>,
+): Promise<void> {
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= items.length) return;
+      await work(items[index]);
+    }
+  });
+  await Promise.all(workers);
+}
+
+/**
+ * Email one member a link to complete their details.
+ *
+ * Used both by the automatic send after a registration and by the console's
+ * resend button, so a link follows exactly one path. The token is rotated every
+ * time: a resend invalidates the previous link, which is the only way to recover
+ * when the first one never arrived or was forwarded to the wrong person.
+ *
+ * Never throws — the caller's write has already succeeded.
+ */
+export async function sendMemberCompletionRequest(
+  team: StoredTeam,
+  member: StoredMember,
+  baseUrl: string,
+  language: Language = DEFAULT_LANGUAGE,
+): Promise<boolean> {
+  if (!member.email) return false;
+
+  if (
+    !(await mailerConfigured("confirmation")) &&
+    !(await mailerAllowsLogFallback("confirmation"))
+  ) {
+    console.error(
+      `[mailer] ${team.reference} has an unconfirmed member, but the confirmation SMTP account is not configured.`,
+    );
+    return false;
+  }
+
+  /* The token is stored before the send so a crash mid-send cannot deliver a link
+     that the database does not recognise. */
+  const token = generateConfirmToken();
+  const hash = hashConfirmToken(token);
+
+  try {
+    await setMemberConfirmToken(member.id, hash);
+    const { subject, html, text } = buildMemberConfirmationEmail(team, member, {
+      confirmUrl: memberConfirmUrl(baseUrl, token, language),
+      privacyUrl: appUrl(baseUrl, `/privacy?lang=${language}`),
+      language,
+    });
+    const outcome = await sendMail({
+      to: member.email,
+      channel: "confirmation",
+      subject,
+      html,
+      text,
+    });
+    return outcome.delivered || outcome.logged;
+  } catch (error) {
+    await setMemberConfirmToken(member.id, null).catch(() => {});
+    console.error(
+      `[mailer] could not send the member confirmation for ${team.reference} to ${member.email}:`,
+      error,
+    );
+    return false;
+  }
+}
+
+/**
+ * Email one teammate of an unsubmitted registration their completion link.
+ *
+ * Same message as the stored-team case — the recipient only needs to recognise
+ * the team and press the button — but the token is written to the draft row, so
+ * the answer arrives before the captain submits and the review step can show it.
+ *
+ * Never throws: the draft is already saved and the captain must not be blocked by
+ * a mail failure.
+ */
+export async function sendDraftCompletionRequest(
+  draft: { draftId: string; teamName: string; tournamentName: string },
+  member: { memberId: string; email: string; fullName?: string | null },
+  baseUrl: string,
+  language: Language = DEFAULT_LANGUAGE,
+): Promise<boolean> {
+  if (!member.email) return false;
+
+  if (
+    !(await mailerConfigured("confirmation")) &&
+    !(await mailerAllowsLogFallback("confirmation"))
+  ) {
+    console.error(
+      `[mailer] draft ${draft.draftId} has a teammate to email, but the confirmation SMTP account is not configured.`,
+    );
+    return false;
+  }
+
+  const token = generateConfirmToken();
+  const hash = hashConfirmToken(token);
+
+  try {
+    /* Stored before the send, so a crash mid-send cannot deliver a link the
+       database does not recognise. */
+    await setDraftMemberToken(member.memberId, hash);
+    const { subject, html, text } = buildMemberConfirmationEmail(
+      { teamName: draft.teamName, tournamentName: draft.tournamentName },
+      { fullName: member.fullName ?? "", email: member.email },
+      {
+        confirmUrl: memberConfirmUrl(baseUrl, token, language),
+        privacyUrl: appUrl(baseUrl, `/privacy?lang=${language}`),
+        language,
+      },
+    );
+    const outcome = await sendMail({
+      to: member.email,
+      channel: "confirmation",
+      subject,
+      html,
+      text,
+    });
+    return outcome.delivered || outcome.logged;
+  } catch (error) {
+    await setDraftMemberToken(member.memberId, null).catch(() => {});
+    console.error(
+      `[mailer] could not send the completion link for draft ${draft.draftId} to ${member.email}:`,
+      error,
+    );
+    return false;
+  }
+}
+
+/**
+ * Email every pending non-leader member a confirmation link.
+ *
+ * Called after a registration is stored, and after an edit that introduced a new
+ * member. Each member is minted their own token; the raw token goes into the email
+ * and only its hash is persisted. A send that fails clears the hash again, so a
+ * later attempt can issue a fresh link rather than leaving a dead one in the table.
+ *
+ * **Sent concurrently.** The messages are independent, and the recipient of the
+ * last one should not be waiting for everybody before them — see `eachConcurrently`.
+ *
+ * **Never throws.** The team is already stored; a mail failure must be reported,
+ * not turned into a failed registration. Returns how many messages were sent.
+ */
+export async function sendMemberConfirmationRequests(
+  team: StoredTeam,
+  baseUrl: string,
+  language: Language = DEFAULT_LANGUAGE,
+): Promise<number> {
+  const pending = pendingMemberConfirmations(team);
+  if (pending.length === 0) return 0;
+
+  let sent = 0;
+
+  await eachConcurrently(pending, 4, async (member) => {
+    if (await sendMemberCompletionRequest(team, member, baseUrl, language)) sent += 1;
+  });
+
+  return sent;
 }

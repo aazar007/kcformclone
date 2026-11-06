@@ -62,7 +62,7 @@ export function ProvincesSection({ config, patch }: SectionProps) {
                   "flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-colors",
                   enabled
                     ? "border-brand/50 bg-brand/8"
-                    : "border-[rgba(148,196,208,0.14)] bg-wall-950/40 hover:border-brand/40",
+                    : "border-[rgba(79, 182, 208,0.14)] bg-wall-950/40 hover:border-brand/40",
                 )}
               >
                 <Checkbox
@@ -79,7 +79,7 @@ export function ProvincesSection({ config, patch }: SectionProps) {
                   >
                     {REGION_LABEL[region]}
                   </span>
-                  <span className="block font-mono text-[10px] text-ash">
+                  <span className="block font-mono text-[0.625rem] text-ash">
                     {count} universit{count === 1 ? "y" : "ies"}
                   </span>
                 </span>
@@ -89,7 +89,7 @@ export function ProvincesSection({ config, patch }: SectionProps) {
           })}
         </div>
 
-        <p className="mt-4 text-[11px] leading-relaxed text-ash/80">
+        <p className="mt-4 text-[0.6875rem] leading-relaxed text-ash/80">
           A closed province disappears from the form entirely: its universities are removed from the
           roster step&apos;s list rather than shown greyed out, so a captain cannot pick one and the
           roster step never has to refuse it. Provinces with no institutions in the list have nothing

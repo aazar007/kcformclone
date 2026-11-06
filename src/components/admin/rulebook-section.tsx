@@ -122,7 +122,7 @@ export function RulebookSection({ config }: { config: TournamentConfig }) {
             {Object.values(states).filter((state) => state.exists).length} of {config.games.length}
           </Pill>
         </div>
-        <p className="mt-1 text-[11px] leading-relaxed text-ash">
+        <p className="mt-1 text-[0.6875rem] leading-relaxed text-ash">
           One document per game. A team must confirm it has read the rules for the game it
           entered, so a game without a rulebook is simply not gated on one.
         </p>
@@ -151,7 +151,7 @@ export function RulebookSection({ config }: { config: TournamentConfig }) {
 
       <section className="panel rounded-2xl p-5">
         <h3 className="text-sm font-bold tracking-wide text-snow">How the gate works</h3>
-        <ul className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-ash">
+        <ul className="mt-2 space-y-1.5 text-[0.6875rem] leading-relaxed text-ash">
           <li>
             • The Rulebook tab on the registration page is always there, whether or not a
             document has been uploaded. It lets the reader choose a game, and says which
@@ -222,11 +222,11 @@ function GameRulebook({
         <div className="min-w-0 flex-1">
           <h4 className="flex flex-wrap items-center gap-2 text-sm font-bold tracking-wide text-snow">
             {gameName}
-            <span className="font-mono text-[10px] font-normal text-ash">{format}</span>
+            <span className="font-mono text-[0.625rem] font-normal text-ash">{format}</span>
             {published ? <Pill tone="brand">Published</Pill> : <Pill tone="muted">None</Pill>}
           </h4>
           {published && (
-            <p className="mt-1 text-[11px] text-ash">
+            <p className="mt-1 text-[0.6875rem] text-ash">
               {state?.title ? `${state.title} · ` : ""}
               {state?.size ? formatSize(state.size) : ""}
               {state?.updatedAt
@@ -244,7 +244,7 @@ function GameRulebook({
               href={`/api/games/${encodeURIComponent(gameId)}/rulebook`}
               target="_blank"
               rel="noreferrer"
-              className="text-[11px] text-brand underline underline-offset-2 hover:text-brand-bright"
+              className="text-[0.6875rem] text-brand underline underline-offset-2 hover:text-brand-bright"
             >
               Open
             </Link>
@@ -267,7 +267,7 @@ function GameRulebook({
         <div className="space-y-2">
           <label
             htmlFor={`rulebook-${gameId}`}
-            className="block text-[11px] font-bold tracking-[0.14em] text-ash uppercase"
+            className="block text-[0.6875rem] font-bold tracking-[0.14em] text-ash uppercase"
           >
             PDF file
           </label>
@@ -277,13 +277,13 @@ function GameRulebook({
             type="file"
             accept="application/pdf,.pdf"
             onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")}
-            className="block w-full cursor-pointer rounded-lg border border-[rgba(148,196,208,0.18)] bg-wall-950/60 px-3 py-2.5 text-xs text-ash file:me-3 file:rounded-md file:border-0 file:bg-brand/15 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-brand"
+            className="block w-full cursor-pointer rounded-lg border border-[rgba(79, 182, 208,0.18)] bg-wall-950/60 px-3 py-2.5 text-xs text-ash file:me-3 file:rounded-md file:border-0 file:bg-brand/15 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-brand"
           />
         </div>
         <div className="space-y-2">
           <label
             htmlFor={`rulebook-title-${gameId}`}
-            className="block text-[11px] font-bold tracking-[0.14em] text-ash uppercase"
+            className="block text-[0.6875rem] font-bold tracking-[0.14em] text-ash uppercase"
           >
             Title
           </label>
@@ -308,7 +308,7 @@ function GameRulebook({
         </p>
       )}
 
-      <p className={cn("mt-3 text-[11px] leading-relaxed", published ? "text-ash/60" : "text-amber-200/80")}>
+      <p className={cn("mt-3 text-[0.6875rem] leading-relaxed", published ? "text-ash/60" : "text-amber-200/80")}>
         {published
           ? "Teams entering this game must confirm they read this before they can submit."
           : "Not published, so teams entering this game are not asked to read one. Upload a PDF to switch the acknowledgement on for this game only."}

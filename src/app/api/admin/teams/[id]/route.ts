@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
+import { appBaseUrl } from "@/lib/app-url";
 import { NOT_CONFIGURED_MESSAGE, UNAUTHORISED_MESSAGE, adminSecret, isAdminRequest } from "@/lib/admin-auth";
 import { validateAdminTeamEdit, type AdminTeamEdit } from "@/lib/admin-edit";
+import { pendingMemberConfirmations, sendMemberConfirmationRequests } from "@/lib/confirmation-email";
+import { runAfterResponse } from "@/lib/deferred";
 import { loadConfig } from "@/lib/config-store";
 import { databaseConfigured } from "@/lib/db";
+import { DEFAULT_LANGUAGE } from "@/lib/i18n";
 import {
   DuplicateValueError,
   deleteTeam,
@@ -146,6 +150,16 @@ export async function PATCH(
     }
 
     const updated = await updateTeam(id, input);
+
+    /* A member the organiser has just added starts pending, exactly as they would
+       through the public form. Members already on the team keep their status. The
+       save does not wait for the mail: the operator has already changed the entry. */
+    if (pendingMemberConfirmations(updated).length > 0) {
+      const baseUrl = await appBaseUrl(request);
+      await runAfterResponse(() =>
+        sendMemberConfirmationRequests(updated, baseUrl, DEFAULT_LANGUAGE),
+      );
+    }
 
     return NextResponse.json({
       ok: true,

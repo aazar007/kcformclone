@@ -57,13 +57,29 @@ export function mulberry32(seed: number) {
   };
 }
 
+/**
+ * Reference codes exclude `I`, `O`, `0` and `1`, which are the characters people
+ * mistype when reading a code out of a message or writing it on a sheet.
+ */
 const REFERENCE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-/** Reference code shown to the team, e.g. KSU-26-4KQ7TN */
+/** The event prefix and season, fixed for this tournament. */
+export const REFERENCE_PREFIX = "ESC-26";
+
+/** How many random characters follow the prefix: `ESC-26-XXXXXXX`. */
+export const REFERENCE_RANDOM_LENGTH = 7;
+
+/**
+ * The code shown to a team, e.g. `ESC-26-4KQ7TNA`.
+ *
+ * Seven characters from a 32-symbol alphabet is 35 bits, which is far beyond
+ * guessing at the rate the lookup endpoint allows. `referenceExists` still checks
+ * for the vanishingly unlikely collision before a team is stored.
+ */
 export function makeReference() {
   let out = "";
-  const bytes = new Uint8Array(6);
+  const bytes = new Uint8Array(REFERENCE_RANDOM_LENGTH);
   crypto.getRandomValues(bytes);
   for (const byte of bytes) out += REFERENCE_ALPHABET[byte % REFERENCE_ALPHABET.length];
-  return `KSU-${String(new Date().getFullYear()).slice(2)}-${out}`;
+  return `${REFERENCE_PREFIX}-${out}`;
 }

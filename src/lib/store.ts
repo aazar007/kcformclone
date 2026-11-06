@@ -32,6 +32,18 @@ export interface MemberInput {
   phone: string;
   role: string;
   requirements: { id: string; label: string; value: string }[];
+  /**
+   * When this member completed their own details, before the registration was
+   * submitted. Present only for a teammate who answered from their emailed link
+   * while the team was still a draft — which is also when their address counts as
+   * confirmed.
+   */
+  profileCompletedAt?: Date | null;
+  /**
+   * The hash of their completion link, carried over from the draft so a link sent
+   * before submission keeps working after it.
+   */
+  confirmTokenHash?: string | null;
 }
 
 export interface TeamInput {
@@ -142,22 +154,67 @@ function rethrowUnique(error: unknown): never {
   throw error;
 }
 
-function memberRows(input: TeamInput) {
-  return input.members.map((member, index) => ({
-    position: index,
-    fullName: member.fullName,
-    gameTag: member.gameTag,
-    universityId: member.universityId,
-    universityName: member.universityName,
-    universityRegion: member.universityRegion,
-    email: member.email.toLowerCase(),
-    // Coaches need not be students, and NULL keeps the unique index happy.
-    studentId: member.studentId.trim() || null,
-    discord: member.discord,
-    phone: member.phone,
-    role: member.role,
-    requirements: member.requirements as unknown as Prisma.InputJsonValue,
-  }));
+function memberRows(
+  input: TeamInput,
+  existing?: Map<
+    string,
+    {
+      emailConfirmedAt: Date | null;
+      profileCompletedAt: Date | null;
+      confirmTokenHash: string | null;
+      bannedAt: Date | null;
+      banReason: string;
+    }
+  >,
+) {
+  return input.members.map((member, index) => {
+    /* A member's confirmation survives an edit while their address stays the same.
+       The leader is always confirmed: their address is the one the captain proved
+       during registration (or the one the edit flow authenticated against). Every
+       other member starts pending and keeps that status until they use their link. */
+    const prior = existing?.get(member.email.toLowerCase());
+    const isLeader = index === input.leaderIndex;
+
+    /* A teammate who filled in their details while the team was a draft has already
+       proved the address, so the submission brings that receipt with it. Without
+       this the first save would wipe a confirmation the player had just given. */
+    const carried = isLeader ? null : (member.profileCompletedAt ?? null);
+
+    const emailConfirmedAt = isLeader
+      ? (prior?.emailConfirmedAt ?? new Date())
+      : (prior?.emailConfirmedAt ?? carried ?? null);
+
+    /* A teammate's profile is theirs to complete, so it carries across an edit by
+       the captain. The leader's row is complete by definition. */
+    const profileCompletedAt = isLeader
+      ? (prior?.profileCompletedAt ?? new Date())
+      : (prior?.profileCompletedAt ?? carried ?? null);
+
+    return {
+      position: index,
+      fullName: member.fullName,
+      gameTag: member.gameTag,
+      universityId: member.universityId,
+      universityName: member.universityName,
+      universityRegion: member.universityRegion,
+      email: member.email.toLowerCase(),
+      // Coaches need not be students, and NULL keeps the unique index happy.
+      studentId: member.studentId.trim() || null,
+      discord: member.discord,
+      phone: member.phone,
+      role: member.role,
+      requirements: member.requirements as unknown as Prisma.InputJsonValue,
+      emailConfirmedAt,
+      profileCompletedAt,
+      /* A ban is a decision about a person, not about the row, so it must not be
+         lifted by an edit — including one made by the captain. */
+      bannedAt: prior?.bannedAt ?? null,
+      banReason: prior?.banReason ?? "",
+      confirmTokenHash: isLeader
+        ? null
+        : (prior?.confirmTokenHash ?? member.confirmTokenHash ?? null),
+    };
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -245,6 +302,33 @@ export async function updateTeam(id: string, input: TeamInput): Promise<StoredTe
       });
       const consentedAt = existing?.consentedAt ?? input.consentedAt ?? undefined;
 
+      /* Preserve each member's confirmation while their address is unchanged.
+         Rebuilding the roster must not reset a confirmation the player has already
+         given, nor throw away a pending member's still-valid link. */
+      const currentMembers = await tx.member.findMany({
+        where: { teamId: id },
+        select: {
+          email: true,
+          emailConfirmedAt: true,
+          profileCompletedAt: true,
+          confirmTokenHash: true,
+          bannedAt: true,
+          banReason: true,
+        },
+      });
+      const confirmations = new Map(
+        currentMembers.map((member) => [
+          member.email.toLowerCase(),
+          {
+            emailConfirmedAt: member.emailConfirmedAt,
+            profileCompletedAt: member.profileCompletedAt,
+            confirmTokenHash: member.confirmTokenHash,
+            bannedAt: member.bannedAt,
+            banReason: member.banReason,
+          },
+        ]),
+      );
+
       await tx.team.update({
         where: { id },
         data: {
@@ -261,7 +345,7 @@ export async function updateTeam(id: string, input: TeamInput): Promise<StoredTe
 
       await tx.member.deleteMany({ where: { teamId: id } });
       await tx.member.createMany({
-        data: memberRows(input).map((row) => ({ ...row, teamId: id })),
+        data: memberRows(input, confirmations).map((row) => ({ ...row, teamId: id })),
       });
 
       return tx.team.findUniqueOrThrow({
@@ -281,6 +365,467 @@ export async function referenceExists(reference: string): Promise<boolean> {
     select: { id: true },
   });
   return found !== null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Email confirmation                                                         */
+/* -------------------------------------------------------------------------- */
+
+/** Store the hash of a freshly minted confirmation link, invalidating any older one. */
+export async function setMemberConfirmToken(memberId: string, hash: string | null): Promise<void> {
+  const prisma = await getPrisma();
+  await prisma.member.update({
+    where: { id: memberId },
+    data: { confirmTokenHash: hash },
+  });
+}
+
+export interface ConfirmedMember {
+  memberName: string;
+  /** The address this link belongs to — exactly one member's. */
+  email: string;
+  teamName: string;
+  reference: string;
+  /** True when this link had already been used before. */
+  alreadyConfirmed: boolean;
+}
+
+/**
+ * Mark one member's address confirmed from their emailed link.
+ *
+ * **Exactly one member.** The token identifies a single row, and the update is
+ * scoped to that row's id *and* that same token, so a confirmation can never
+ * spread to the rest of the roster. That had happened on screen: reopening an
+ * entry marked every member as verified, which made one player's confirmation look
+ * as though it had confirmed everybody.
+ *
+ * Idempotent on purpose: mail clients and link scanners sometimes open a URL
+ * twice, and the second visit must still show success rather than "invalid link".
+ * The conditional update (`emailConfirmedAt: null`) makes the first use win, so a
+ * forwarded link cannot move a confirmation date that already exists.
+ *
+ * Returns null when the token is unknown.
+ */
+export async function confirmMemberByTokenHash(hash: string): Promise<ConfirmedMember | null> {
+  const prisma = await getPrisma();
+  const member = await prisma.member.findUnique({
+    where: { confirmTokenHash: hash },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      emailConfirmedAt: true,
+      team: { select: { teamName: true, reference: true } },
+    },
+  });
+  if (!member) return null;
+
+  const alreadyConfirmed = member.emailConfirmedAt !== null;
+  if (!alreadyConfirmed) {
+    /* `updateMany`, not `update`: the row is named by its id *and* its token, and
+       only while still pending. There is no filter here that could ever match a
+       sibling member, and a second concurrent click writes nothing. */
+    const confirmed = await prisma.member.updateMany({
+      where: {
+        id: member.id,
+        confirmTokenHash: hash,
+        emailConfirmedAt: null,
+      },
+      data: { emailConfirmedAt: new Date() },
+    });
+
+    /* A simultaneous click on the same link got there first: the address is
+       confirmed either way, so this is still a success rather than an error. */
+    if (confirmed.count === 0) {
+      return {
+        memberName: member.fullName,
+        email: member.email,
+        teamName: member.team.teamName,
+        reference: member.team.reference,
+        alreadyConfirmed: true,
+      };
+    }
+  }
+
+  return {
+    memberName: member.fullName,
+    email: member.email,
+    teamName: member.team.teamName,
+    reference: member.team.reference,
+    alreadyConfirmed,
+  };
+}
+
+/**
+ * Which member a confirmation link belongs to — without changing anything.
+ *
+ * Used by the landing page to say *whose* address the link is about before the
+ * button is pressed. Read-only on purpose: opening a link must never confirm an
+ * address by itself, or a university mail filter that follows every URL would
+ * confirm players who never clicked.
+ */
+export async function findMemberByConfirmTokenHash(hash: string): Promise<ConfirmedMember | null> {
+  const prisma = await getPrisma();
+  const member = await prisma.member.findUnique({
+    where: { confirmTokenHash: hash },
+    select: {
+      fullName: true,
+      email: true,
+      emailConfirmedAt: true,
+      team: { select: { teamName: true, reference: true } },
+    },
+  });
+  if (!member) return null;
+
+  return {
+    memberName: member.fullName,
+    email: member.email,
+    teamName: member.team.teamName,
+    reference: member.team.reference,
+    alreadyConfirmed: member.emailConfirmedAt !== null,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Member profile completion                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Everything a member needs to complete their own details, resolved from their
+ * emailed link.
+ *
+ * The leader only enters a teammate's university and address, so the rest is
+ * gathered here. The row is named by the token hash and nothing else — a link can
+ * never address a sibling, and it carries no team id the browser could swap.
+ */
+export interface CompletionTarget {
+  memberId: string;
+  teamId: string;
+  role: string;
+  fullName: string;
+  gameTag: string;
+  studentId: string;
+  discord: string;
+  phone: string;
+  requirements: { id: string; label: string; value: string }[];
+  email: string;
+  universityId: string;
+  universityName: string;
+  profileCompletedAt: Date | null;
+  emailConfirmedAt: Date | null;
+  memberBannedAt: Date | null;
+  teamBannedAt: Date | null;
+  teamName: string;
+  reference: string;
+  tournamentName: string;
+  gameName: string;
+  gender: string;
+  leaderIndex: number;
+}
+
+export interface MemberProfileInput {
+  fullName: string;
+  gameTag: string;
+  studentId: string;
+  discord: string;
+  phone: string;
+  requirements: { id: string; label: string; value: string }[];
+}
+
+export type CompletionOutcome =
+  | { ok: true; email: string; teamName: string; reference: string }
+  | { ok: false; reason: "unknown" | "banned" };
+
+function completionSelect() {
+  return {
+    id: true,
+    teamId: true,
+    position: true,
+    role: true,
+    fullName: true,
+    gameTag: true,
+    studentId: true,
+    discord: true,
+    phone: true,
+    requirements: true,
+    email: true,
+    universityId: true,
+    universityName: true,
+    profileCompletedAt: true,
+    emailConfirmedAt: true,
+    bannedAt: true,
+    team: {
+      select: {
+        teamName: true,
+        reference: true,
+        tournamentName: true,
+        gameName: true,
+        gender: true,
+        leaderIndex: true,
+        bannedAt: true,
+      },
+    },
+  } as const;
+}
+
+/** Read the member a details link belongs to. Changes nothing. */
+export async function findMemberCompletionByTokenHash(
+  hash: string,
+): Promise<CompletionTarget | null> {
+  const prisma = await getPrisma();
+  const row = await prisma.member.findUnique({
+    where: { confirmTokenHash: hash },
+    select: completionSelect(),
+  });
+  if (!row) return null;
+
+  const answers = Array.isArray(row.requirements)
+    ? (row.requirements as unknown as { id?: unknown; label?: unknown; value?: unknown }[])
+        .filter((entry) => entry && typeof entry === "object")
+        .map((entry) => ({
+          id: String(entry.id ?? ""),
+          label: String(entry.label ?? ""),
+          value: String(entry.value ?? ""),
+        }))
+    : [];
+
+  return {
+    memberId: row.id,
+    teamId: row.teamId,
+    role: row.role,
+    fullName: row.fullName,
+    gameTag: row.gameTag,
+    studentId: row.studentId ?? "",
+    discord: row.discord,
+    phone: row.phone,
+    requirements: answers,
+    email: row.email,
+    universityId: row.universityId,
+    universityName: row.universityName,
+    profileCompletedAt: row.profileCompletedAt,
+    emailConfirmedAt: row.emailConfirmedAt,
+    memberBannedAt: row.bannedAt,
+    teamBannedAt: row.team.bannedAt,
+    teamName: row.team.teamName,
+    reference: row.team.reference,
+    tournamentName: row.team.tournamentName,
+    gameName: row.team.gameName,
+    gender: row.team.gender,
+    leaderIndex: row.team.leaderIndex,
+  };
+}
+
+/**
+ * Save a member's own details and mark their address confirmed.
+ *
+ * The link proves control of the mailbox, so pressing Save is the confirmation —
+ * there is no second button. The update is scoped to the row id *and* the token,
+ * and refuses while the member or their team is banned.
+ *
+ * Idempotent: pressing Save again updates the same row and keeps working, which is
+ * what lets a player correct a typo they only noticed after submitting.
+ */
+export async function completeMemberProfileByTokenHash(
+  hash: string,
+  input: MemberProfileInput,
+): Promise<CompletionOutcome> {
+  const prisma = await getPrisma();
+  const row = await prisma.member.findUnique({
+    where: { confirmTokenHash: hash },
+    select: {
+      id: true,
+      email: true,
+      bannedAt: true,
+      team: { select: { teamName: true, reference: true, bannedAt: true } },
+    },
+  });
+  if (!row) return { ok: false, reason: "unknown" };
+  if (row.bannedAt || row.team.bannedAt) return { ok: false, reason: "banned" };
+
+  await prisma.member.updateMany({
+    where: { id: row.id, confirmTokenHash: hash, bannedAt: null },
+    data: {
+      fullName: input.fullName,
+      gameTag: input.gameTag,
+      studentId: input.studentId.trim() || null,
+      discord: input.discord,
+      phone: input.phone,
+      requirements: input.requirements as unknown as Prisma.InputJsonValue,
+      emailConfirmedAt: new Date(),
+      profileCompletedAt: new Date(),
+    },
+  });
+
+  return {
+    ok: true,
+    email: row.email,
+    teamName: row.team.teamName,
+    reference: row.team.reference,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Bans                                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Ban or reinstate a whole team.
+ *
+ * Kept as a timestamp plus a reason rather than a boolean so the console can say
+ * when and why — the question an organiser asks six weeks later. `null` lifts it.
+ */
+export async function setTeamBan(
+  teamId: string,
+  banned: boolean,
+  reason = "",
+): Promise<boolean> {
+  const prisma = await getPrisma();
+  const stamp = banned ? new Date() : null;
+  const note = banned ? reason.trim() : "";
+
+  /* The team's current stamp, so an unban can lift exactly the bans this cascade
+     wrote. Everybody the cascade touched carries the same instant; a player banned
+     on their own carries a different one, and must keep it. */
+  const current = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { bannedAt: true },
+  });
+  if (!current) return false;
+
+  /* **A ban on the team is a ban on everybody on it.** Writing it to the members too
+     is what makes the rule travel: a player removed from the roster later, or one who
+     tries to enter under a different team, is refused without anybody having to
+     remember that the *team* was the thing that was banned. The team's own flag stays
+     because it is what the console reads and what closes the shared links. */
+  const [team] = await prisma.$transaction([
+    prisma.team.updateMany({
+      where: { id: teamId },
+      data: { bannedAt: stamp, banReason: note },
+    }),
+    banned
+      ? prisma.member.updateMany({ where: { teamId }, data: { bannedAt: stamp, banReason: note } })
+      : prisma.member.updateMany({
+          /* Only the rows the team ban itself stamped. An individual suspension
+             survives the team being reinstated, which is what makes the two
+             separate decisions rather than one. */
+          where: { teamId, bannedAt: current.bannedAt ?? stamp },
+          data: { bannedAt: null, banReason: "" },
+        }),
+  ]);
+
+  return team.count > 0;
+}
+
+/**
+ * Save a member's own details, from the role-scoped edit flow.
+ *
+ * Only the fields the member owns are written: name, game tag, student number,
+ * contacts and the organisers' answers. University, address and role come from the
+ * caption's own choices and are **never** taken from the request — a member cannot
+ * move themselves to another institution, or become a coach to avoid a student
+ * number, by editing their card.
+ *
+ * `profileCompletedAt` is only set on the first completion, so a later correction
+ * does not look like a new profile.
+ */
+export async function updateMemberOwnProfile(
+  teamId: string,
+  memberId: string,
+  input: MemberProfileInput,
+): Promise<boolean> {
+  const prisma = await getPrisma();
+  const existing = await prisma.member.findFirst({
+    where: { id: memberId, teamId },
+    select: { profileCompletedAt: true, bannedAt: true, team: { select: { bannedAt: true } } },
+  });
+  if (!existing) return false;
+  if (existing.bannedAt || existing.team.bannedAt) return false;
+
+  const result = await prisma.member.updateMany({
+    where: { id: memberId, teamId, bannedAt: null },
+    data: {
+      fullName: input.fullName,
+      gameTag: input.gameTag,
+      studentId: input.studentId.trim() || null,
+      discord: input.discord,
+      phone: input.phone,
+      requirements: input.requirements as unknown as Prisma.InputJsonValue,
+      emailConfirmedAt: new Date(),
+      profileCompletedAt: existing.profileCompletedAt ?? new Date(),
+    },
+  });
+  return result.count > 0;
+}
+
+/**
+ * Rewrite the roster's order, as positions 0..n-1 in the order given.
+ *
+ * Only the leader may do this, and only the *order* is theirs: the personal details
+ * behind each row stay with the row. Two passes through the table because
+ * `@@unique([teamId, position])` would otherwise trip over an intermediate state —
+ * swapping rows 1 and 2 briefly has two people in the same slot.
+ */
+export async function reorderTeamMembers(
+  teamId: string,
+  memberIds: string[],
+): Promise<boolean> {
+  const prisma = await getPrisma();
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { leaderIndex: true, members: { select: { id: true, position: true } } },
+  });
+  if (!team) return false;
+  if (team.members.length !== memberIds.length) return false;
+
+  const known = new Set(team.members.map((member) => member.id));
+  const submitted = new Set(memberIds);
+  if (submitted.size !== memberIds.length) return false;
+  for (const id of memberIds) if (!known.has(id)) return false;
+
+  /*
+   * The leader's **row** leads, not position 0.
+   *
+   * Positions are what the roster is ordered by, and `leaderIndex` is an index into
+   * that order — so moving the leader to the bench must move `leaderIndex` with
+   * them, or the team would silently acquire a different leader. The row that led
+   * before this call is the row that leads after it.
+   */
+  const leaderRow = team.members.find((member) => member.position === team.leaderIndex);
+  const nextLeaderIndex = leaderRow ? memberIds.indexOf(leaderRow.id) : team.leaderIndex;
+
+  await prisma.$transaction(async (tx) => {
+    /* Park every row on a negative position first, which no real position can be. */
+    await tx.member.updateMany({
+      where: { teamId },
+      data: { position: { decrement: 1000 } },
+    });
+    for (let index = 0; index < memberIds.length; index += 1) {
+      await tx.member.update({
+        where: { id: memberIds[index] },
+        data: { position: index },
+      });
+    }
+    await tx.team.update({
+      where: { id: teamId },
+      data: { leaderIndex: nextLeaderIndex === -1 ? team.leaderIndex : nextLeaderIndex },
+    });
+  });
+
+  return true;
+}
+
+/** Ban or reinstate one member. */
+export async function setMemberBan(
+  memberId: string,
+  banned: boolean,
+  reason = "",
+): Promise<boolean> {
+  const prisma = await getPrisma();
+  const result = await prisma.member.updateMany({
+    where: { id: memberId },
+    data: { bannedAt: banned ? new Date() : null, banReason: banned ? reason.trim() : "" },
+  });
+  return result.count > 0;
 }
 
 /**
@@ -325,6 +870,14 @@ export interface MemberClash {
   studentId: string;
   /** The team that already holds this person, so an edit can ignore its own rows. */
   teamId: string;
+  /**
+   * True when an organiser has banned this person or the team they are on.
+   *
+   * A ban must outlive the registration being deleted and rebuilt, so the clash
+   * list is also what refuses a banned player's address on a fresh entry — a
+   * second registration is exactly what a ban is meant to prevent.
+   */
+  banned: boolean;
 }
 
 /**
@@ -356,7 +909,8 @@ export async function findMemberClashes(
       email: true,
       studentId: true,
       teamId: true,
-      team: { select: { teamName: true } },
+      bannedAt: true,
+      team: { select: { teamName: true, bannedAt: true } },
     },
   });
 
@@ -376,6 +930,7 @@ export async function findMemberClashes(
         field: "email",
         studentId: emailMatch.studentId ?? "",
         teamId: emailMatch.teamId,
+        banned: Boolean(emailMatch.bannedAt ?? emailMatch.team.bannedAt),
       });
       continue;
     }
@@ -388,6 +943,7 @@ export async function findMemberClashes(
         field: "studentId",
         studentId: idMatch.studentId ?? "",
         teamId: idMatch.teamId,
+        banned: Boolean(idMatch.bannedAt ?? idMatch.team.bannedAt),
       });
     }
   }
@@ -614,6 +1170,93 @@ export async function listGameLogoVersions(): Promise<Record<string, number>> {
   });
 
   return Object.fromEntries(rows.map((row) => [row.gameId, row.updatedAt.getTime()]));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sponsor logos                                                               */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Identical in shape to the game-logo pair above — same table layout, same version
+ * scheme, same reason for storing bytes in the database rather than on disk.
+ *
+ * The one difference is that a sponsor has no table of its own: sponsors are rows
+ * inside `Config.sponsors`, so `sponsorId` is a slug with no foreign key behind it.
+ * That is what `pruneSponsorLogos` is for.
+ */
+
+export async function upsertSponsorLogo(input: {
+  sponsorId: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  bytes: Buffer;
+}) {
+  const prisma = await getPrisma();
+  const data = {
+    mimeType: input.mimeType,
+    width: input.width,
+    height: input.height,
+    size: input.bytes.byteLength,
+    bytes: new Uint8Array(input.bytes),
+  };
+
+  return prisma.sponsorLogo.upsert({
+    where: { sponsorId: input.sponsorId },
+    create: { sponsorId: input.sponsorId, ...data },
+    update: data,
+  });
+}
+
+export async function getSponsorLogo(sponsorId: string) {
+  const prisma = await getPrisma();
+  return prisma.sponsorLogo.findUnique({ where: { sponsorId } });
+}
+
+export async function deleteSponsorLogo(sponsorId: string) {
+  const prisma = await getPrisma();
+  await prisma.sponsorLogo.deleteMany({ where: { sponsorId } });
+}
+
+/** Which sponsors have a logo, and the cache-busting version of each. */
+export async function listSponsorLogoVersions(): Promise<Record<string, number>> {
+  const prisma = await getPrisma();
+  const rows = await prisma.sponsorLogo.findMany({
+    select: { sponsorId: true, updatedAt: true },
+  });
+
+  return Object.fromEntries(rows.map((row) => [row.sponsorId, row.updatedAt.getTime()]));
+}
+
+/**
+ * The key a "where to watch" channel's or footer social account's logo is stored under.
+ *
+ * Both live in the sponsor logo table rather than a table of their own: the shape is
+ * identical, and a second table would mean a migration and a regenerated client for no
+ * behavioural gain. The `channel:` and `social:` prefixes keep the namespaces apart — a
+ * sponsor id is a slug and can never contain a colon — and are what let
+ * `pruneSponsorLogos` be told about every list at once.
+ *
+ * Returns null for an id that is not a plausible slug, so a hand-built URL cannot reach
+ * the table with anything else.
+ */
+export { channelLogoKey, socialLogoKey } from "./logo-keys";
+
+/**
+ * Drop logo bytes with no sponsor (or channel) behind them.
+ *
+ * A sponsor deleted from the config — or renamed, which re-slugs its id — leaves its
+ * rows here, because a JSON column cannot carry a foreign key. Nothing will ever request
+ * those URLs again, so left alone they are pure storage. Called with the ids that *do*
+ * still exist, whenever the console saves. Channel logos are in the same table, so the
+ * ids passed must include their `channelLogoKey`s too — or this deletes them.
+ */
+export async function pruneSponsorLogos(liveIds: string[]): Promise<number> {
+  const prisma = await getPrisma();
+  const result = await prisma.sponsorLogo.deleteMany({
+    where: { sponsorId: { notIn: liveIds } },
+  });
+  return result.count;
 }
 
 /* -------------------------------------------------------------------------- */

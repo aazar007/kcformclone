@@ -68,6 +68,12 @@ model Team {
   /// when this entry was made, which is why it is nullable rather than defaulted:
   /// inventing a timestamp would fabricate a decision nobody made.
   consentedAt    DateTime?
+  /// When an organiser banned this team, or NULL while it is active. A banned
+  /// team can still be read in the console, but cannot be edited by its captain
+  /// and none of its members may be re-registered elsewhere.
+  bannedAt       DateTime?
+  /// Why it was banned, in the organiser's words. Empty when not banned.
+  banReason      String   @default("")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -102,10 +108,95 @@ model Member {
   role             String @default("STARTER")
   /// Organiser-defined answers, stored as [{ id, label, value }].
   requirements     Json   @default("[]")
+  /// When this member proved they own the address, by entering the emailed code
+  /// (the team leader) or by completing the emailed details form (everyone
+  /// else). NULL on a non-leader means the address is still pending confirmation.
+  emailConfirmedAt DateTime?
+  /// When the member filled in their own details from their emailed link.
+  ///
+  /// The captain only enters a teammate's university and email, so a non-leader
+  /// row is created incomplete: name, game tag, student ID, contacts and the
+  /// organiser's questions are theirs to supply. A leader row is complete from
+  /// the start. NULL therefore means "waiting for the player", which is what the
+  /// console shows as pending.
+  profileCompletedAt DateTime?
+  /// When an organiser banned this member, or NULL while they are active. A
+  /// banned member is refused in any new registration and cannot use their
+  /// details link.
+  bannedAt         DateTime?
+  /// Why they were banned, in the organiser's words.
+  banReason        String   @default("")
+  /// SHA-256 hash of the single-use confirmation link token. Only the hash is
+  /// stored, so a leaked database cannot be used to confirm somebody's address.
+  confirmTokenHash String? @unique
   createdAt        DateTime @default(now())
 
   @@unique([teamId, position])
   @@index([teamId])
+}
+
+/// A registration in progress.
+///
+/// The captain finishes the roster and, before anything is submitted, every
+/// teammate is emailed a link to add their own details. Those answers have to be
+/// stored somewhere the moment they arrive — the captain's review step shows them
+/// live — and there is no `Team` row yet, because nothing has been submitted and
+/// the team name must not be reserved by an abandoned attempt.
+///
+/// So a draft is its own small record: the team facts already chosen, and one row
+/// per teammate. Submitting turns it into a `Team` and deletes it.
+model Draft {
+  id             String   @id @default(cuid())
+  /// SHA-256 of the value the browser holds. The browser is given the raw secret
+  /// once; only its hash is stored, so a database leak cannot open somebody's draft.
+  secretHash     String   @unique
+  teamName       String
+  tournamentName String
+  gameName       String
+  gender         String
+  /// Position of the leader, so a player completing their form is not asked to be
+  /// a leader and a leader is never sent a completion link.
+  leaderIndex    Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  members DraftMember[]
+
+  @@index([createdAt])
+  /// The sweeper deletes on `updatedAt`, which is the only thing that moves while a
+  /// teammate is filling their form in.
+  @@index([updatedAt])
+}
+
+/// One teammate as they will appear on the roster, filled in by that person.
+///
+/// The captain supplied only the role, university and address; the rest arrives
+/// from the emailed link. `profileCompletedAt` is when they submitted it, and is
+/// also when their address counts as confirmed — the link itself proved the
+/// mailbox.
+model DraftMember {
+  id                 String    @id @default(cuid())
+  draftId            String
+  draft              Draft     @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  position           Int
+  role               String    @default("STARTER")
+  universityId       String
+  universityName     String
+  universityRegion   String
+  email              String
+  fullName           String    @default("")
+  gameTag            String    @default("")
+  studentId          String?
+  discord            String    @default("")
+  phone              String    @default("")
+  requirements       Json      @default("[]")
+  profileCompletedAt DateTime?
+  /// SHA-256 of the completion link token. Only the hash is stored.
+  confirmTokenHash   String?   @unique
+  createdAt          DateTime  @default(now())
+
+  @@unique([draftId, position])
+  @@index([draftId])
 }
 
 /// The tournament settings the organiser edits in the admin console. A single
@@ -142,6 +233,23 @@ model OtpCode {
 /// through /api/games/[gameId]/logo.
 model GameLogo {
   gameId    String   @id
+  mimeType  String
+  width     Int
+  height    Int
+  size      Int
+  bytes     Bytes
+  updatedAt DateTime @updatedAt
+}
+
+/// A sponsor's logo, stored exactly like a game's.
+///
+/// Keyed by the sponsor's id — the slug in `Config.sponsors[].id` — rather than by a
+/// foreign key, because sponsors live inside the config JSON. That means deleting a
+/// sponsor from the config leaves its bytes behind; `pruneSponsorLogos` sweeps those up
+/// when the console saves, which is cheaper and safer than a cascade across a JSON
+/// column that PostgreSQL cannot follow.
+model SponsorLogo {
+  sponsorId String   @id
   mimeType  String
   width     Int
   height    Int

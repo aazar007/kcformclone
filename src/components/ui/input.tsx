@@ -23,7 +23,7 @@ export function Input({ className, invalid, ...props }: InputProps) {
         "focus-visible:outline-none focus-visible:ring-2",
         showInvalid
           ? "border-danger/60 focus-visible:border-danger focus-visible:ring-danger/30"
-          : "border-[rgba(148,196,208,0.18)] focus-visible:border-brand/70 focus-visible:ring-brand/25",
+          : "border-[rgba(79, 182, 208,0.18)] focus-visible:border-brand/70 focus-visible:ring-brand/25",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}

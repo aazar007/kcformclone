@@ -87,25 +87,24 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, [language]);
 
   /**
-   * Switch language, then reload.
+   * Switch language in place.
    *
-   * Changing the language changes the whole document direction, and a direction
-   * change is not something a re-render handles cleanly: every logical property,
-   * scroll position and mirrored icon has to be recomputed, and anything a
-   * browser or extension measured on the previous layout is now wrong. Reloading
-   * rebuilds it in one pass from `LANGUAGE_BOOTSTRAP_SCRIPT`, so the page is laid
-   * out correctly the first time rather than corrected afterwards.
+   * **This used to reload the page, and that was the bug.** A reload re-mounts the whole
+   * wizard, and the wizard's "has this visitor started yet" flag is component state — so
+   * a captain three steps into a registration who tapped the language switch was thrown
+   * back onto the landing page, having lost their place. The draft came back, but the
+   * form was gone, which reads as being kicked out.
    *
-   * The chosen language is written to storage *and* to the URL before reloading,
-   * because the bootstrap script reads the URL first — otherwise a page opened as
-   * `?lang=en` would flip straight back after the reload and the toggle would look
-   * broken.
+   * The reload was there because changing language flips the document direction, and a
+   * direction change touches every logical property at once. It does not need a reload:
+   * the `<html dir>` is set in an effect below, and everything laid out under it uses
+   * logical properties (`ms-`/`me-`, `text-start`, `start-`/`end-`) or reads `rtl` from
+   * this context, so React's re-render rebuilds the layout correctly — and keeps the
+   * scroll position, the open step and everything typed so far.
    *
-   * Worth knowing: a reload re-mounts the form. A registration in progress comes
-   * back from the saved draft, but the consent box is deliberately not restored
-   * (consent is given per submission), so it has to be ticked again. Switching
-   * language mid-form is rare enough that this is preferable to a half-relaid
-   * layout.
+   * The choice is still written to storage *and* to the URL, because the bootstrap
+   * script in `layout.tsx` reads the URL first on the next load — otherwise a page
+   * opened as `?lang=en` would flip back and the toggle would look broken.
    */
   const setLanguage = React.useCallback(
     (next: Language) => {
@@ -117,6 +116,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         // Storage can be blocked; the URL below still carries the choice.
       }
 
+      /* State first: the effect below writes `lang` and `dir` onto `<html>` on the next
+         render, and the form underneath re-renders against the new direction. */
+      setLanguageState(next);
+
       try {
         const url = new URL(window.location.href);
         url.searchParams.set("lang", next);
@@ -124,8 +127,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // A malformed URL is not worth failing the switch over.
       }
-
-      window.location.reload();
     },
     [language],
   );

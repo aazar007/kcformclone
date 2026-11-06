@@ -157,16 +157,49 @@ export const EN = {
   "wizard.editTab": "Edit my registration",
   "wizard.tabsLabel": "Registration mode",
   "wizard.intro":
-    "Register your squad for {tournament}. Fill in every section, add each member's university, in-game tag and contact details, confirm their email, and tick the one we should reach on match day.",
+    "You register as the team leader. Add each player's university and email — they fill in the rest.",
   "wizard.stepOf": "Step {step} of {total}",
   "wizard.fieldsToGo": "{count} fields to go",
   "wizard.ready": "Ready to submit",
   "wizard.railLabel": "Steps",
   "wizard.footerNote": "KSU Crown esports championship",
 
+  /* -- footer -- */
+  "footer.privacy": "Privacy Policy",
+  "footer.contact": "Contact us",
+  "footer.social": "Social media",
+  "footer.community": "Community",
+  "footer.rights": "Esports Student Club · King Saud University",
+  "footer.opensNewTab": "Opens in a new tab",
+
+
+  /* -- landing -- */
+  "home.badgeOpen": "Registration is open",
+  "home.badgeClosed": "Registration is closed",
+  "home.liveBadge": "Live",
+  "home.liveDefault": "Tournament is live — watch us on our official channels.",
+  "home.liveOpensNewTab": "opens in a new tab",
+  "home.headline": "Build your squad. Claim the crown.",
+  "home.sub": "Register your team for {tournament} in four steps.",
+  "home.cta": "Register your team",
+  "home.leaderWarning":
+    "Only the team leader may register the team. Duplicate registrations will result in a ban.",
+  "home.ctaEdit": "Edit my registration",
+  "home.ctaRules": "Read the rulebook",
+  "home.gamesTitle": "Choose your battlefield",
+  "home.sponsorsTitle": "Our sponsors",
+  "home.prize": "Prize pool",
+  "home.prizeTotal": "Total prize pool",
+  "home.prizeTotalAcross": "across {count} titles",
+  "home.prizeTotalAcrossOne": "one title, one crown",
+  "home.players": "{count} players",
+  "home.playerOne": "1 player",
+  "home.back": "Back to start",
+  "home.toTop": "Back to the top",
+
   /* -- steps -- */
   "step.team.title": "Team",
-  "step.team.blurb": "Name your squad and pick your division",
+  "step.team.blurb": "Name your squad and pick your section",
   "step.game.title": "Game",
   "step.game.blurb": "Choose the title you are entering",
   "step.roster.title": "Roster",
@@ -176,11 +209,10 @@ export const EN = {
 
   /* -- team step -- */
   "team.nameLabel": "Team name",
-  "team.nameHint":
-    "3–{max} characters. Every squad is announced as “Team …”, so you do not need to type it.",
+  "team.nameHint": "3–{max} characters. We add “Team” for you.",
   "team.announcedAs": "Will be announced as",
-  "team.divisionLabel": "Gender",
-  "team.divisionHint": "Your gender decides which games you can enter.",
+  "team.divisionLabel": "Your section",
+  "team.divisionHint": "Your section decides which games you can enter.",
   "division.male": "Male",
   "division.female": "Female",
   "team.male": "Male",
@@ -191,12 +223,12 @@ export const EN = {
   /* -- game step -- */
   "game.chooseLabel": "Choose the game",
   "game.openTo": "Open to",
-  "game.onlyDivision": "{division} division",
-  "game.openForDivision": "Games open to the {division} division.",
+  "game.onlyDivision": "{division} section",
+  "game.openForDivision": "Games open to the {division} section.",
   "game.fieldsOne": "A squad fields 1 player at a time.",
   "game.fieldsMany": "A squad fields {count} players at a time.",
-  "game.noGames": "No game is open to your division right now.",
-  "game.divisionFirst": "Choose your division first — the games open to you depend on it.",
+  "game.noGames": "No game is open to your section right now.",
+  "game.divisionFirst": "Choose your section first.",
   "game.mayAdd": " You may also add {extras}.",
   "game.subsOne": "1 substitute",
   "game.subsMany": "{count} substitutes",
@@ -244,6 +276,9 @@ export const EN = {
   "review.email": "Email",
   "review.emailConfirmed": "Email confirmed",
   "review.emailNotConfirmed": "Email not confirmed",
+  "review.emailPending": "Pending confirmation",
+  "review.detailsPending":
+    "Waiting for this player to add their details. They appear here automatically.",
   "edit.organiserHelp": "You can still open this registration without the email:",
   "edit.useOrganiserCode": "Use the organiser code",
   "edit.editInConsole": "Edit it in the console",
@@ -251,36 +286,68 @@ export const EN = {
   "roster.substitute": "Substitute",
   "roster.coach": "Coach",
   "roster.roleFor": "Role for {role} {n}",
-  "roster.notFinished":
-    "This member is not finished — send the code and enter it above. Nothing is registered until the whole form is submitted.",
-  "roster.pickGameFirst": "Pick a game first — your division's squad rules decide how many people you may register.",
+  "roster.notFinished": "This member is not finished — send the code above.",
+  "roster.notFinishedLeader": "This team leader is not finished — send the code above.",
+  "roster.notFinishedCoach": "This coach is not finished — check the details above.",
+  "roster.mainPlayers": "Main players",
+  "roster.mainPlayersFixed": "{game} fields this many. Pick who plays.",
+  "roster.substitutesLabel": "Substitutes",
+  "roster.noSubstitutes": "This game does not allow substitutes.",
+  "roster.coachLabel": "The team has a coach",
+  "roster.noCoach": "This game does not allow a coach.",
+  "roster.leaderIsRegistrant": "You are the team leader — the first player is you.",
+  "roster.selfComplete":
+    "You enter this player's university and email. We email them a link to add the rest.",
+  "roster.selfCompleteCoach":
+    "You enter this coach's email. We email them a link to add the rest.",
+  /* -- live roster: teammates completing their own details -- */
+  "live.title": "Players completing their details",
+  "live.sending": "Sending each player their link…",
+  "live.waiting": "{pending} of {total} players have not added their details yet.",
+  "live.waitingOne": "1 of {total} players has not added their details yet.",
+  "live.done": "Every player has added their details.",
+  "live.hint": "Details appear here as players submit them.",
+  "live.refresh": "Refresh now",
+  "live.error": "We could not send the players' links. You can still submit; the organisers can resend them.",
+  "live.unreachable": "We could not reach the server to send the players' links.",
+  "live.retry": "Try again",
+  "live.submitWarning":
+    "{pending} of {total} players have not added their details. Submit again to register anyway — their links stay valid.",
+  "live.submitBlocked": "Players may need a moment to check their email.",
+  "roster.pickGameFirst": "Pick a game first.",
   "roster.noUniversities":
-    "No university is eligible for this tournament right now. The organisers have closed every province your division can enter from — check back, or contact them.",
+    "No university is open to your section right now. Check back, or contact the organisers.",
   "roster.selectUniversity": "Select this member's university…",
-  "roster.universityGone": "That university is no longer eligible — please pick another.",
+  "roster.universityGone": "That university is no longer eligible — pick another.",
   "roster.thisGame": "This game",
   "requirement.choose": "Choose…",
 
   /* -- member fields -- */
   "field.fullName": "Full name",
-  "field.fullNameHint":
-    "Letters only — given name and family name, as printed on the student ID.",
+  "field.fullNameHint": "As printed on your student ID.",
   "field.fullNamePlaceholder": "Full name as on your student ID",
   "field.gameTag": "Game tag",
-  "field.gameTagHint":
-    "Your in-game handle exactly as it appears — Epic ID, Riot ID or Battle.net tag.",
+  "field.gameTagHint": "Exactly as it appears in game.",
   "field.gameTagCoachHint": "Optional for coaching staff.",
   "field.gameTagPlaceholder": "e.g. Falcon#1234",
   "field.university": "University",
+  "field.universityCoachLabel": "University (optional for coaches)",
+  "field.universityCoachHint": "Optional for coaches — leave this blank if it does not apply.",
   "field.email": "University email",
   "field.emailHint":
-    "Student addresses look like 441313142@student.ksu.edu.sa — the format each university issues. Every player confirms theirs by code.",
+    "The address your university issues, e.g. 441313142@student.ksu.edu.sa.",
+  "field.emailCoachLabel": "Email",
+  "field.emailCoachHint": "Any address we can reach you on.",
+  "field.emailCoachPlaceholder": "you@example.com",
   "field.emailPlaceholder": "4XXXXXXX@student.ksu.edu.sa",
   /* Shown where the placeholder would be, and as the disabled "send code" tooltip,
      while no university is chosen. */
   "field.emailChooseUniversityFirst": "Choose a university first",
   "field.studentId": "Student ID",
   "field.studentIdHint": "4–20 numbers",
+  /* Shown instead of the hint once the number has been read out of the member's email
+     address, so a value that appeared on its own is explained rather than mysterious. */
+  "field.studentIdFromEmail": "Filled in from your email — change it if wrong.",
   "field.studentIdCoachHint": "Optional for coaching staff.",
   "field.studentIdPlaceholder": "e.g. 445123456",
   "field.discord": "Discord ID",
@@ -290,9 +357,11 @@ export const EN = {
   "field.phoneHint": "Saudi mobile — 05X XXX XXXX or +9665XXXXXXXX.",
   "field.phonePlaceholder": "05X XXX XXXX",
   "field.phoneSaved": "Saved as {phone}",
+  "field.phoneSavedPrefix": "Saved as",
 
   /* -- email verification -- */
   "verify.send": "Send verification code",
+  "verify.finishEmailFirst": "Finish your full university email to send a code.",
   "verify.sendAgain": "Try sending it again",
   "verify.resend": "Resend",
   "verify.verify": "Verify",
@@ -302,13 +371,18 @@ export const EN = {
   "verify.useDifferent": "Use a different address",
   "verify.sent": "We emailed a 6-digit code to {email}.",
   "verify.logged": "SMTP is not configured, so the code was written to the server log instead.",
-  "verify.enterValidFirst": "Enter a valid university email address first.",
+  "verify.alreadyRegisteredHint":
+    "If this team is yours, open “Edit my registration” instead of registering again.",
   "verify.notThere": "Not there?",
   "verify.checkSpam": "Check your Spam or Junk folder",
   "verify.spamBody":
-    "— university filters often file these messages there. If it is there, mark it as “not spam” so the next one arrives properly.",
+    "— university filters often file them there. Mark it “not spam” so the next one arrives.",
   "verify.unreachable": "We could not reach the server. Check your connection and try again.",
   "verify.couldNotSend": "Could not send the code.",
+  "verify.pendingAfterSubmit":
+    "We email this player a link to add their details when you press Continue.",
+  "verify.pendingCoachAfterSubmit":
+    "We email this coach a link to add their details when you press Continue.",
 
   /* -- duplicate badge -- */
   "dup.checking": "Checking",
@@ -321,9 +395,9 @@ export const EN = {
   "error.submitFailed": "Submission failed",
   "error.unreachable": "We could not reach the server. Check your connection and try again.",
   "roster.trimmed":
-    "{game} fields {count} players, so the roster was trimmed from {from} to {to}. Add substitutes if this game allows them.",
+    "{game} fields {count} players, so the roster was trimmed from {from} to {to}.",
   "roster.trimmedOne":
-    "{game} fields 1 player, so the roster was trimmed from {from} to {to}. Add substitutes if this game allows them.",
+    "{game} fields 1 player, so the roster was trimmed from {from} to {to}.",
   "conflict.row": "{value} — already on {team}",
 
   /* -- review step -- */
@@ -337,7 +411,7 @@ export const EN = {
   "review.game": "Game",
   "review.roster": "Roster",
   "review.teamName": "Team name",
-  "review.division": "Gender",
+  "review.division": "Your section",
   "review.gameLabel": "Game",
   "review.format": "Format",
   "review.membersLabel": "Members",
@@ -347,6 +421,7 @@ export const EN = {
   "review.institution": "Institution",
   "review.leaderContact": "Team Leader Contact",
   "review.leader": "Leader",
+  "review.playerNo": "Player {n}",
   "review.studentId": "Student ID",
   "review.universityEmail": "University email",
   "review.discord": "Discord ID",
@@ -386,14 +461,13 @@ export const EN = {
   "summary.more": "+{count} more",
   "summary.fix": "Fix",
   "summary.checkTitle": "Worth a double check",
-  "summary.checkBody":
-    "These will not block your entry, but a mismatch may delay verification.",
+  "summary.checkBody": "These will not block your entry.",
 
   /* -- success -- */
   "success.title": "You're in",
   "success.body": "{team} is registered for {tournament}. Keep your reference code safe.",
   "success.referenceLabel": "Registration reference",
-  "success.copy": "Tap to copy — quote this in any support request",
+  "success.copy": "Tap to copy",
   "success.copied": "Copied to your clipboard",
   "success.game": "Game",
   "success.roster": "Roster",
@@ -403,27 +477,99 @@ export const EN = {
   "success.universities": "Universities",
   "success.leader": "Team leader",
   "success.nextSteps":
-    "We will contact every member's Discord and phone number if anything needs confirming. The team leader is the first point of contact for the bracket, match schedule and lobby details.",
+    "We contact members by Discord or phone if anything needs confirming. The team leader gets the bracket, schedule and lobby details.",
+  "success.shareTitle": "Team link",
+  "success.shareBody":
+    "Send this to your players. Each opens it, enters their email and fills in their own card.",
+  "success.shareCopy": "Tap to copy the link",
+  "success.shareCopied": "Link copied to your clipboard",
   "success.emailSent": "A confirmation with these details was emailed to your team leader.",
+  "success.memberConfirmations":
+    "Every other member was emailed a link to add their details. Anyone unfinished stays pending — the link still works.",
   "success.checkSpamTitle": "Not in the inbox? Check Spam or Junk.",
   "success.checkSpamBody":
-    "University filters often file these messages there. If you find it, mark it as “not spam” so future emails arrive properly — and keep the reference code above either way, since it is what reopens your entry.",
+    "University filters often file them there. If you find it, mark it “not spam”.",
   "success.emailFailed":
-    "We could not email your confirmation — keep the reference code above. The organisers can look your team up with it.",
+    "We could not email your confirmation — keep the reference code above.",
   "success.another": "Register another team",
-  "success.draftRestored": "We restored the draft you were working on.",
+  "success.draftRestored": "We restored your draft.",
+  "success.discordTitle": "Join the tournament Discord",
+  "success.discordBody":
+    "Schedules, lobby codes and rulings are posted there. Every member should join.",
+  "success.discordCta": "Open Discord",
+
+  /* -- member email confirmation page -- */
+  "confirm.invalidTitle": "This link is not valid",
+  "confirm.invalidBody":
+    "The confirmation link is incomplete or has been replaced. Ask your team leader to check the registration.",
+  "confirm.home": "Back to the registration form",
+
+  /* -- member details completion page -- */
+  "complete.title": "Complete your details",
+  "complete.intro":
+    "The team leader of {team} entered your university and email. Fill in the rest.",
+  "complete.teamLabel": "Team",
+  "complete.emailLabel": "Email (entered by your team leader)",
+  "complete.universityLabel": "University",
+  "complete.gameLabel": "Game",
+  "complete.roleLabel": "Role",
+  "complete.pendingNote": "These details are yours to complete.",
+  "complete.save": "Save my details",
+  "complete.saving": "Saving…",
+  "complete.savedTitle": "Your details are saved",
+  "complete.savedBody":
+    "Thanks, {name}. Your address is confirmed for {team}. You can update these details any time.",
+  "complete.error": "We could not save your details just now. Please check the form and try again.",
+  "complete.bannedTitle": "This place is not active",
+  "complete.bannedBody":
+    "This registration has been suspended by the organisers. If you think that is a mistake, contact them.",
+  "complete.footnote": "This link belongs to your address only.",
 
   /* -- closed -- */
   "closed.title": "Registration is closed",
+  "preview.title": "Registration is closed to the public",
+  "preview.body": "You are signed in as an organiser, so the form stays open. Entries made here are real.",
 
   /* -- edit flow -- */
+  "edit.introIdentify":
+    "Enter the reference code and your email. We will send you a code to confirm it.",
+  "edit.emailLabel": "Your email address",
+  "edit.emailHint": "The address that was entered for you on the team.",
+  "edit.emailPlaceholder": "you@student.ksu.edu.sa",
+  "edit.emailNote": "We send a code to this address.",
+  "edit.sendCode": "Email me a code",
+  "edit.codeSentTo": "We sent a code to {email}.",
+  "edit.adminOpen": "Open with the organiser code",
+  "edit.adminToggle": "I am an organiser",
+  "edit.startAgain": "Start again",
+  "edit.roleLeader": "Team leader",
+  "edit.rolePlayer": "Player",
+  "edit.roleSubstitute": "Substitute",
+  "edit.roleCoach": "Coach",
+  "edit.roleOrganiser": "Organiser",
+  "edit.rosterTitle": "Roster order",
+  "edit.rosterHint": "Reorder the team here. You see names and positions only.",
+  "edit.namePending": "Details not completed yet",
+  "edit.moveUp": "Move up",
+  "edit.moveDown": "Move down",
+  "edit.saveOrder": "Save the order",
+  "edit.orderSaved": "Roster order saved.",
+  "edit.yourCard": "Your details",
+  "edit.yourCardHint": "Your own card.",
+  "edit.cardTitle": "Your player card",
+  "edit.setupTitle": "Complete your details",
+  "edit.setupIntro": "You are on {team}. Fill in your details.",
+  "edit.cardIntro": "Your card for {team}.",
+  "edit.saveProfile": "Save my details",
+  "edit.profileSaved": "Your details are saved.",
+  "edit.profileSavedBody": "The organisers can now see your details for {team}.",
+  "edit.onlyYourCard": "Only your own card is shown.",
   "edit.title": "Edit my registration",
-  "edit.intro":
-    "Enter the reference code from your confirmation email. We will send a code to the team leader's address to make sure it is you.",
-  "edit.hintReference": "Looks like KSU-26-4KQ7TN.",
+  "edit.intro": "Enter your reference code. We will email a code to confirm it is you.",
+  "edit.hintReference": "Looks like ESC-26-4KQ7TNA.",
   "edit.adminLabel": "Organiser code",
   "edit.adminPlaceholder": "Admin code",
-  "edit.introReference": "Enter the reference code from your confirmation, and we will email a code to your team leader.",
+  "edit.introReference": "Enter your reference code and we will email a code to your team leader.",
   "edit.introOrganiser": "Enter the organiser code to open this registration without the leader's inbox.",
   "edit.useEmailCode": "Use the email code instead",
   "edit.organiserAsk": "Organiser? Don't have access to the leader's inbox?",
@@ -432,7 +578,7 @@ export const EN = {
   "edit.somethingWrong": "Something went wrong. Try again.",
   "edit.couldNotOpen": "We could not open that registration. Please start again.",
   "edit.referenceLabel": "Reference code",
-  "edit.referencePlaceholder": "KSU-26-XXXXXX",
+  "edit.referencePlaceholder": "ESC-26-XXXXXXX",
   "edit.getCode": "Email me a code",
   "edit.sending": "Sending…",
   "edit.codeSent": "We emailed a code to {email}.",
@@ -441,15 +587,14 @@ export const EN = {
   "edit.opening": "Opening…",
   "edit.changeReference": "Use a different reference",
   "edit.organiserLabel": "Organiser access code",
-  "edit.organiserHint": "For organisers only — opens a team without emailing the captain.",
+  "edit.organiserHint": "For organisers only.",
   "edit.organiserOpen": "Open as organiser",
   "edit.organiserBanner": "Opened as an organiser — no email was sent to the team.",
-  "edit.bannerOrganiser":
-    "Opened as an organiser, without the team leader's email code. Saving will change what {team} sees.",
+  "edit.bannerOrganiser": "Opened as an organiser. Saving changes what {team} sees.",
   "edit.bannerTeamFallback": "this team",
   "edit.introCode": "Enter the 6-digit code we sent to {email}.",
   "edit.emailFallback": "your team leader",
-  "edit.leaderInboxNote": "Squads are confirmed through the team leader's inbox.",
+  "edit.leaderInboxNote": "Confirmed through the team leader's inbox.",
   "edit.checkSpam": "Not there? Check Spam or Junk.",
   "edit.checkSpamBody": "University filters often file these messages there.",
   "edit.saved": "Changes saved",
@@ -462,21 +607,20 @@ export const EN = {
      reads correctly over the empty state, which is the same panel. */
   "rulebook.title": "Tournament rulebooks",
   "rulebook.intro":
-    "Read this before you submit. The form will not send your registration until you have read your game's rulebook to the end and confirmed you read it.",
+    "Read your game's rulebook before submitting. Scroll to the end to unlock the form.",
   "rulebook.open": "Open in a new tab",
   "rulebook.download": "Download",
   "rulebook.notPublished":
-    "The organisers have not published the rulebooks yet. They will appear here as soon as they do — you will need to read your game's rules before you can submit your registration.",
+    "The rulebooks are not published yet. You must read your game's rules before submitting.",
   "rulebook.viewerLabel": "{game} rulebook, as a PDF",
   /* A way out, not a diagnosis: the frame usually renders, and telling a reader their
      browser "did not display" it when it plainly did makes the site look broken. */
   "rulebook.viewerFallback":
-    "If the rulebook does not appear above, open it in a new tab — you still need to read it before submitting.",
+    "If it does not appear, open it in a new tab. You still need to read it.",
   "rulebook.loading": "Loading the rulebook…",
   /* The gate, said plainly. It follows the reader itself, which is where the scroll
      happens, so nobody has to wonder why the box on the next tab is still locked. */
-  "rulebook.scrollHint":
-    "Scroll to the end of the rulebook. The submission page stays locked until you have.",
+  "rulebook.scrollHint": "Scroll to the end to unlock the submission page.",
   /*
    * The way back to the form.
    *
@@ -486,16 +630,15 @@ export const EN = {
    * form. A button that says what it does, sitting next to the document that was just read,
    * is the difference between a captain continuing and a captain abandoning.
    */
-  "rulebook.continue": "I have read it — go to the submission page",
+  "rulebook.continue": "Back to submission",
   "rulebook.continueHint":
-    "This button unlocks once you have scrolled to the end of the rulebook. You will still tick the box on the submission page to confirm you read it.",
+    "Unlocks at the end. You still tick the box on the submission page.",
   "rules.acceptWithRulebook":
     "I have read the {game} rulebook and I agree to follow the tournament rules",
   "rules.acceptStandalone": "I agree to follow the tournament rules",
   "rules.consequence":
     "Breaking any rule may lead to disqualification and removal from the tournament.",
-  "rules.mustOpen":
-    "Open your game's rulebook first — the box unlocks once you have scrolled to the end of it.",
+  "rules.mustOpen": "Open your game's rulebook first — scroll to the end to unlock this.",
   "rules.readIt": "Read the {game} rulebook",
 } as const;
 
@@ -522,12 +665,44 @@ export const AR: Record<MessageKey, string> = {
   "wizard.editTab": "تعديل التسجيل",
   "wizard.tabsLabel": "طريقة التسجيل",
   "wizard.intro":
-    "سجّل فريقك في {tournament}. املأ جميع الأقسام، وأضف لكل لاعب جامعته ومعرّفه في اللعبة وبيانات التواصل، وأكّد بريده الإلكتروني، وحدّد اللاعب الذي نتواصل معه يوم المباراة.",
+    "أنت تسجّل بوصفك قائد الفريق. أضف جامعة كل لاعب وبريده — وهو يكمل بقية بياناته.",
   "wizard.stepOf": "الخطوة {step} من {total}",
   "wizard.fieldsToGo": "بقيت {count} خانة",
   "wizard.ready": "جاهز للإرسال",
   "wizard.railLabel": "الخطوات",
   "wizard.footerNote": "بطولة KSU Crown للرياضات الإلكترونية",
+
+  /* -- footer -- */
+  "footer.privacy": "سياسة الخصوصية",
+  "footer.contact": "تواصل معنا",
+  "footer.social": "حسابات التواصل",
+  "footer.community": "المجتمع",
+  "footer.rights": "نادي الرياضات الإلكترونية · جامعة الملك سعود",
+  "footer.opensNewTab": "يُفتح في تبويب جديد",
+
+  /* -- landing -- */
+  "home.badgeOpen": "التسجيل مفتوح",
+  "home.badgeClosed": "التسجيل مغلق",
+  "home.liveBadge": "مباشر",
+  "home.liveDefault": "البطولة مباشرة الآن — تابعونا عبر قنواتنا الرسمية.",
+  "home.liveOpensNewTab": "يُفتح في تبويب جديد",
+  "home.headline": "كوّن فريقك. وانتزع التاج.",
+  "home.sub": "سجّل فريقك في {tournament} في أربع خطوات.",
+  "home.cta": "سجّل فريقك",
+  "home.leaderWarning":
+    "قائد الفريق فقط هو من يسجّل الفريق. والتسجيلات المكررة تؤدي إلى الإيقاف.",
+  "home.ctaEdit": "تعديل التسجيل",
+  "home.ctaRules": "اقرأ دليل القواعد",
+  "home.gamesTitle": "ساحات المعركة",
+  "home.sponsorsTitle": "رعاة البطولة",
+  "home.prize": "الجائزة",
+  "home.prizeTotal": "مجموع الجوائز",
+  "home.prizeTotalAcross": "في {count} ألعاب",
+  "home.prizeTotalAcrossOne": "في لعبة واحدة",
+  "home.players": "{count} لاعبين",
+  "home.playerOne": "لاعب واحد",
+  "home.back": "العودة للرئيسية",
+  "home.toTop": "العودة إلى الأعلى",
 
   /* -- steps -- */
   "step.team.title": "الفريق",
@@ -542,14 +717,14 @@ export const AR: Record<MessageKey, string> = {
   /* -- team step -- */
   "team.nameLabel": "اسم الفريق",
   "team.nameHint":
-    "من ٣ إلى {max} حرفًا. يُعلن عن كل فريق باسم «Team …»، لذا لا حاجة لكتابتها.",
+    "من ٣ إلى {max} حرفًا. ونضيف «Team» تلقائيًا.",
   "team.announcedAs": "سيُعلن باسم",
-  "team.divisionLabel": "الجنس",
-  "team.divisionHint": "الجنس الذي تختاره يحدّد الألعاب المتاحة لك.",
-  "division.male": "رجال",
-  "division.female": "نساء",
-  "team.male": "ذكر",
-  "team.female": "انثى",
+  "team.divisionLabel": "قسمك",
+  "team.divisionHint": "القسم الذي تختاره يحدّد الألعاب المتاحة لك.",
+  "division.male": "طلاب",
+  "division.female": "طالبات",
+  "team.male": "طالب",
+  "team.female": "طالبة",
   "team.gamesOpen": "",
   "team.gamesOpenOne": "",
 
@@ -557,11 +732,11 @@ export const AR: Record<MessageKey, string> = {
   "game.chooseLabel": "اختر اللعبة",
   "game.openTo": "متاحة لـ",
   "game.onlyDivision": "{division}",
-  "game.openForDivision": "الألعاب المتاحة  {division}.",
+  "game.openForDivision": "الألعاب المتاحة لقسم {division}.",
   "game.fieldsOne": "يُطلب لاعب واحد في هذه اللعبة.",
   "game.fieldsMany": "يلعب الفريق بـ{count} لاعبين.",
   "game.noGames": "لا توجد ألعاب متاحة لقسمك حاليًا.",
-  "game.divisionFirst": "اختر قسمك أولًا — فالألعاب المتاحة لك تعتمد عليه.",
+  "game.divisionFirst": "اختر قسمك أولًا.",
   "game.mayAdd": " ويمكنك كذلك إضافة {extras}.",
   "game.subsOne": "احتياطي واحد",
   "game.subsMany": "{count} احتياطيين",
@@ -589,7 +764,7 @@ export const AR: Record<MessageKey, string> = {
   "roster.gameFieldsPlayers": "{game} يتطلب {count} لاعبين ({format}).",
   "roster.gameFieldsPlayerOne": "{game} يتطلب لاعبًا واحدًا ({format}).",
   "roster.chooseGameFirst": "اختر اللعبة أولًا.",
-  "roster.universityMixed": "اختر جامعة كل لاعب، ويجوز ان تكون مختلفة عن باقي أعضاء الفريق.",
+  "roster.universityMixed": "اختر جامعة كل لاعب، ويجوز أن تكون مختلفة عن باقي الفريق.",
   "roster.universitySame": "يجب أن يدرس جميع الأعضاء في الجامعة نفسها.",
   "roster.onlyRegions": " تُعرض فقط جامعات {regions}.",
   "roster.universitiesCount": "{count} جامعات",
@@ -607,6 +782,9 @@ export const AR: Record<MessageKey, string> = {
   "review.email": "البريد",
   "review.emailConfirmed": "البريد مؤكَّد",
   "review.emailNotConfirmed": "البريد غير مؤكَّد",
+  "review.emailPending": "قيد التأكيد",
+  "review.detailsPending":
+    "بانتظار أن يضيف هذا اللاعب بياناته. وتظهر هنا تلقائيًا.",
   "edit.organiserHelp": "يمكنك فتح هذا التسجيل دون الحاجة إلى البريد:",
   "edit.useOrganiserCode": "استخدام رمز المنظّم",
   "edit.editInConsole": "عدّله في لوحة التحكم",
@@ -615,32 +793,70 @@ export const AR: Record<MessageKey, string> = {
   "roster.coach": "مدرّب",
   "roster.roleFor": "دور {role} {n}",
   "roster.notFinished":
-    "بيانات اللاعب غير مكتملة .",
+    "بيانات هذا اللاعب غير مكتملة — أرسل الرمز أعلاه.",
+  "roster.notFinishedLeader":
+    "بيانات قائد الفريق غير مكتملة — أرسل الرمز أعلاه.",
+  "roster.notFinishedCoach":
+    "بيانات المدرّب غير مكتملة — راجع البيانات أعلاه.",
+  "roster.mainPlayers": "اللاعبون الأساسيون",
+  "roster.mainPlayersFixed": "{game} يلعب بهذا العدد. اختر من يلعب.",
+  "roster.substitutesLabel": "البدلاء",
+  "roster.noSubstitutes": "هذه اللعبة لا تسمح ببدلاء.",
+  "roster.coachLabel": "الفريق لديه مدرّب",
+  "roster.noCoach": "هذه اللعبة لا تسمح بمدرّب.",
+  "roster.leaderIsRegistrant":
+    "أنت قائد الفريق — واللاعب الأول هو أنت.",
+  "roster.selfComplete":
+    "أنت تدخل جامعة هذا اللاعب وبريده. ونرسل له رابطًا لإكمال البقية.",
+  "roster.selfCompleteCoach":
+    "أنت تدخل بريد هذا المدرّب. ونرسل له رابطًا لإكمال البقية.",
+  /* -- live roster: teammates completing their own details -- */
+  "live.title": "اللاعبون يكملون بياناتهم",
+  "live.sending": "جارٍ إرسال الرابط إلى كل لاعب…",
+  "live.waiting": "{pending} من {total} لاعبين لم يضيفوا بياناتهم بعد.",
+  "live.waitingOne": "لاعب واحد من {total} لم يضف بياناته بعد.",
+  "live.done": "أضاف جميع اللاعبين بياناتهم.",
+  "live.hint":
+    "تظهر البيانات هنا عند إرسال اللاعبين لها.",
+  "live.refresh": "تحديث الآن",
+  "live.error": "تعذّر إرسال روابط اللاعبين. يمكنك الإرسال على أي حال، ويمكن للمنظّمين إعادة إرسالها.",
+  "live.unreachable": "تعذّر الوصول إلى الخادم لإرسال روابط اللاعبين.",
+  "live.retry": "إعادة المحاولة",
+  "live.submitWarning":
+    "{pending} من {total} لاعبين لم يضيفوا بياناتهم. أرسل مرة أخرى للتسجيل على أي حال — ستبقى روابطهم صالحة.",
+  "live.submitBlocked":
+    "قد يحتاج اللاعبون وقتًا لمراجعة بريدهم.",
   "roster.pickGameFirst":
     "اختر اللعبة أولًا.",
   "roster.noUniversities":
-    "لا توجد جامعة مؤهلة لهذه البطولة حاليًا. أغلق المنظّمون جميع المناطق المتاحة لقسمك — تحقّق لاحقًا أو تواصل معهم.",
+    "لا توجد جامعة متاحة لقسمك حاليًا. تحقّق لاحقًا أو تواصل مع المنظّمين.",
   "roster.selectUniversity": "اختر جامعة هذا اللاعب...",
-  "roster.universityGone": "هذه الجامعة لم تعد مؤهلة — اختر غيرها.",
+  "roster.universityGone": "هذه الجامعة لم تعد متاحة — اختر غيرها.",
   "roster.thisGame": "هذه اللعبة",
   "requirement.choose": "اختر…",
 
   /* -- member fields -- */
   "field.fullName": "الاسم الكامل",
-  "field.fullNameHint": "يرجى ادخال الاسم الثلاثي.",
+  "field.fullNameHint": "كما هو مكتوب في بطاقتك الجامعية.",
   "field.fullNamePlaceholder": "الاسم الثلاثي",
   "field.gameTag": "المعرّف في اللعبة",
-  "field.gameTagHint": "معرّفك داخل اللعبة تماماً كما يظهر — Epic ID أو Riot ID أو Battle.net.",
+  "field.gameTagHint": "كما يظهر في اللعبة تمامًا.",
   "field.gameTagCoachHint": "اختياري للمدرب.",
   "field.gameTagPlaceholder": "مثال: Falcon#1234",
   "field.university": "الجامعة",
+  "field.universityCoachLabel": "الجامعة (اختياري للمدرّب)",
+  "field.universityCoachHint": "اختياري للمدرّبين — اتركه فارغًا إن لم ينطبق.",
   "field.email": "البريد الجامعي",
   "field.emailHint":
-    "بريد الطالب بهذا الشكل 441313142@student.ksu.edu.sa ويؤكّد كل لاعب بريده برمز.",
+    "البريد الذي تصدره جامعتك، مثل 441313142@student.ksu.edu.sa.",
+  "field.emailCoachLabel": "البريد الإلكتروني",
+  "field.emailCoachHint": "أي بريد يمكننا التواصل معك عليه.",
+  "field.emailCoachPlaceholder": "you@example.com",
   "field.emailPlaceholder": "44XXXXXXX@student.ksu.edu.sa",
   "field.emailChooseUniversityFirst": "اختر الجامعة أولًا",
   "field.studentId": "الرقم الجامعي",
   "field.studentIdHint": "من ٤ إلى ٢٠ رقمًا فقط",
+  "field.studentIdFromEmail": "تمت تعبئته من بريدك — عدّله إن كان غير صحيح.",
   "field.studentIdCoachHint": "اختياري للمدرب.",
   "field.studentIdPlaceholder": "مثال: 445123456",
   "field.discord": "معرّف ديسكورد",
@@ -650,9 +866,11 @@ export const AR: Record<MessageKey, string> = {
   "field.phoneHint": "جوال سعودي — 05X XXX XXXX أو +9665XXXXXXXX.",
   "field.phonePlaceholder": "05X XXX XXXX",
   "field.phoneSaved": "سيُحفظ بالشكل {phone}",
+  "field.phoneSavedPrefix": "سيُحفظ بالشكل",
 
   /* -- email verification -- */
   "verify.send": "إرسال رمز التحقق",
+  "verify.finishEmailFirst": "أكمل بريدك الجامعي لإرسال الرمز.",
   "verify.sendAgain": "إعادة محاولة الإرسال",
   "verify.resend": "إعادة الإرسال",
   "verify.verify": "تأكيد",
@@ -662,13 +880,18 @@ export const AR: Record<MessageKey, string> = {
   "verify.useDifferent": "استخدام بريد آخر",
   "verify.sent": "أرسلنا رمزًا من ٦ أرقام إلى {email}.",
   "verify.logged": "لم يتم ضبط SMTP، فتم تسجيل الرمز في سجل الخادم بدلًا من إرساله.",
-  "verify.enterValidFirst": "أدخل بريدًا جامعيًا صحيحًا أولًا.",
+  "verify.alreadyRegisteredHint":
+    "إن كان هذا الفريق فريقك، افتح «تعديل تسجيلي» بدلًا من التسجيل من جديد.",
   "verify.notThere": "لم تجده؟",
   "verify.checkSpam": "تحقّق من مجلد الرسائل غير المرغوب فيها",
   "verify.spamBody":
-    "فكثيرًا ما تضع الفلاتر الجامعية هذه الرسائل هناك. ",
+    "— فكثيرًا ما تضع الفلاتر الجامعية هذه الرسائل هناك. علّمها «ليست غير مرغوب فيها» ليصل ما بعدها.",
   "verify.unreachable": "تعذّر الوصول إلى الخادم. تحقّق من اتصالك وحاول مرة أخرى.",
   "verify.couldNotSend": "تعذّر إرسال الرمز.",
+  "verify.pendingAfterSubmit":
+    "نرسل لهذا اللاعب رابطًا لإكمال بياناته عند الضغط على «متابعة».",
+  "verify.pendingCoachAfterSubmit":
+    "نرسل لهذا المدرّب رابطًا لإكمال بياناته عند الضغط على «متابعة».",
 
   /* -- duplicate badge -- */
   "dup.checking": "جارٍ التحقّق",
@@ -681,9 +904,9 @@ export const AR: Record<MessageKey, string> = {
   "error.submitFailed": "تعذّر الإرسال",
   "error.unreachable": "تعذّر الوصول إلى الخادم. تحقّق من اتصالك وحاول مرة أخرى.",
   "roster.trimmed":
-    "{game} يتطلب {count} لاعبين، لذا تم تقليص القائمة من {from} إلى {to}. أضف احتياطيين إن كانت اللعبة تسمح بذلك.",
+    "{game} يتطلب {count} لاعبين، لذا تم تقليص القائمة من {from} إلى {to}.",
   "roster.trimmedOne":
-    "{game} يتطلب لاعبًا واحدًا، لذا تم تقليص القائمة من {from} إلى {to}. أضف احتياطيين إن كانت اللعبة تسمح بذلك.",
+    "{game} يتطلب لاعبًا واحدًا، لذا تم تقليص القائمة من {from} إلى {to}.",
   "conflict.row": "{value} — مسجَّل بالفعل في {team}",
 
   /* -- review step -- */
@@ -697,7 +920,7 @@ export const AR: Record<MessageKey, string> = {
   "review.game": "اللعبة",
   "review.roster": "القائمة",
   "review.teamName": "اسم الفريق",
-  "review.division": "الجنس",
+  "review.division": "قسمك",
   "review.gameLabel": "اللعبة",
   "review.format": "النظام",
   "review.membersLabel": "اللاعبين",
@@ -707,6 +930,7 @@ export const AR: Record<MessageKey, string> = {
   "review.institution": "الجهة",
   "review.leaderContact": "بيانات قائد الفريق",
   "review.leader": "القائد",
+  "review.playerNo": "اللاعب {n}",
   "review.studentId": "الرقم الجامعي",
   "review.universityEmail": "البريد الجامعي",
   "review.discord": "معرّف ديسكورد",
@@ -742,13 +966,13 @@ export const AR: Record<MessageKey, string> = {
   "summary.more": "+{count} أخرى",
   "summary.fix": "إصلاح",
   "summary.checkTitle": "يستحق التحقق مرة أخرى",
-  "summary.checkBody": "لن تمنع هذه إرسال تسجيلك، لكن قد يؤخّر عدم التطابق عملية التحقق.",
+  "summary.checkBody": "لن تمنع هذه إرسال تسجيلك.",
 
   /* -- success -- */
   "success.title": "تم التسجيل",
   "success.body": "{team} مسجَّل في {tournament}. احتفظ برمز التسجيل في مكان آمن.",
   "success.referenceLabel": "رقم التسجيل",
-  "success.copy": "اضغط للنسخ — اذكره في أي طلب دعم",
+  "success.copy": "اضغط للنسخ",
   "success.copied": "تم النسخ",
   "success.game": "اللعبة",
   "success.roster": "القائمة",
@@ -758,27 +982,104 @@ export const AR: Record<MessageKey, string> = {
   "success.universities": "الجامعات",
   "success.leader": "قائد الفريق",
   "success.nextSteps":
-    "سنتواصل عبر ديسكورد وجوال كل لاعب عند الحاجة لتأكيد أي شيء. وقائد الفريق هو أول من نتواصل معه بخصوص الجدول ومواعيد المباريات وبيانات الغرفة.",
+    "نتواصل مع الأعضاء عبر ديسكورد أو الجوال عند الحاجة. وقائد الفريق يستلم الجدول ومواعيد المباريات وبيانات الغرفة.",
+  "success.shareTitle": "رابط الفريق",
+  "success.shareBody":
+    "أرسل هذا الرابط إلى لاعبيك. يفتحه كل واحد منهم ويُدخل بريده ويكمل بطاقته.",
+  "success.shareCopy": "اضغط لنسخ الرابط",
+  "success.shareCopied": "تم نسخ الرابط",
   "success.emailSent": "أرسلنا رسالة تأكيد بهذه التفاصيل إلى بريد قائد الفريق.",
+  "success.memberConfirmations":
+    "أرسلنا إلى كل عضو آخر رابطًا لإضافة بياناته. ومن لم يكمل يبقى بحالة «قيد التأكيد» — والرابط لا يزال صالحًا.",
   "success.checkSpamTitle": "لم تجدها في صندوق الوارد؟ تحقّق من مجلد الرسائل غير المرغوب فيها.",
   "success.checkSpamBody":
-    "فكثيرًا ما تضع الفلاتر الجامعية هذه الرسائل هناك. وإن وجدتها، علّمها كـ«ليست غير مرغوب فيها» ليصل ما بعدها بشكل صحيح — واحتفظ برقم التسجيل أعلاه في كل الأحوال، فهو ما يعيد فتح تسجيلك.",
+    "فكثيرًا ما تضع الفلاتر الجامعية هذه الرسائل هناك. وإن وجدتها فعلّمها «ليست غير مرغوب فيها».",
   "success.emailFailed":
-    "تعذّر إرسال رسالة التأكيد — احتفظ برقم التسجيل أعلاه، فبه يستطيع المنظّمون العثور على فريقك.",
+    "تعذّر إرسال رسالة التأكيد — احتفظ برقم التسجيل أعلاه.",
   "success.another": "تسجيل فريق آخر",
-  "success.draftRestored": "استعدنا المسودة التي كنت تعمل عليها.",
+  "success.draftRestored": "استعدنا مسودتك.",
+  "success.discordTitle": "انضم إلى ديسكورد البطولة",
+  "success.discordBody":
+    "تُنشر هناك الجداول ورموز الغرف والقرارات. يُفضّل أن ينضم كل عضو.",
+  "success.discordCta": "فتح ديسكورد",
+
+  /* -- member email confirmation page -- */
+  "confirm.invalidTitle": "هذا الرابط غير صالح",
+  "confirm.invalidBody":
+    "رابط التأكيد غير مكتمل أو تم استبداله. اطلب من قائد فريقك مراجعة التسجيل.",
+  "confirm.home": "العودة إلى نموذج التسجيل",
+
+  /* -- member details completion page -- */
+  "complete.title": "أكمل بياناتك",
+  "complete.intro":
+    "أدخل قائد فريق {team} جامعتك وبريدك. أكمل بقية البيانات.",
+  "complete.teamLabel": "الفريق",
+  "complete.emailLabel": "البريد الإلكتروني (أدخله قائد فريقك)",
+  "complete.universityLabel": "الجامعة",
+  "complete.gameLabel": "اللعبة",
+  "complete.roleLabel": "الدور",
+  "complete.pendingNote":
+    "هذه البيانات عليك أنت.",
+  "complete.save": "حفظ بياناتي",
+  "complete.saving": "جارٍ الحفظ…",
+  "complete.savedTitle": "تم حفظ بياناتك",
+  "complete.savedBody":
+    "شكرًا، {name}. تم تأكيد بريدك لفريق {team}. يمكنك تحديث بياناتك في أي وقت.",
+  "complete.error": "تعذّر حفظ بياناتك الآن. يرجى مراجعة النموذج والمحاولة مرة أخرى.",
+  "complete.bannedTitle": "هذا المركز غير مفعّل",
+  "complete.bannedBody":
+    "تم إيقاف هذا التسجيل من قبل المنظّمين. إن كنت ترى أن ذلك خطأ، فتواصل معهم.",
+  "complete.footnote":
+    "هذا الرابط يخصّ بريدك أنت فقط.",
 
   /* -- closed -- */
   "closed.title": "التسجيل مغلق",
+  "preview.title": "التسجيل مغلق أمام العموم",
+  "preview.body": "أنت مسجّل الدخول كمنظّم، لذلك يبقى النموذج متاحًا. والتسجيلات من هنا حقيقية.",
 
   /* -- edit flow -- */
+  "edit.introIdentify":
+    "أدخل رقم التسجيل وبريدك. وسنرسل إليك رمزًا لتأكيده.",
+  "edit.emailLabel": "بريدك الإلكتروني",
+  "edit.emailHint": "البريد الذي أُدخل لك في الفريق.",
+  "edit.emailPlaceholder": "اسمك@student.ksu.edu.sa",
+  "edit.emailNote":
+    "نرسل رمزًا إلى هذا البريد.",
+  "edit.sendCode": "أرسل لي رمزًا",
+  "edit.codeSentTo": "أرسلنا رمزًا إلى {email}.",
+  "edit.adminOpen": "فتح برمز المنظّم",
+  "edit.adminToggle": "أنا منظّم",
+  "edit.startAgain": "البدء من جديد",
+  "edit.roleLeader": "قائد الفريق",
+  "edit.rolePlayer": "لاعب",
+  "edit.roleSubstitute": "بديل",
+  "edit.roleCoach": "مدرّب",
+  "edit.roleOrganiser": "منظّم",
+  "edit.rosterTitle": "ترتيب القائمة",
+  "edit.rosterHint":
+    "أعد ترتيب الفريق هنا. ترى الأسماء والمراكز فقط.",
+  "edit.namePending": "لم يكمل بياناته بعد",
+  "edit.moveUp": "نقل لأعلى",
+  "edit.moveDown": "نقل لأسفل",
+  "edit.saveOrder": "حفظ الترتيب",
+  "edit.orderSaved": "تم حفظ ترتيب القائمة.",
+  "edit.yourCard": "بياناتك",
+  "edit.yourCardHint": "بطاقتك أنت.",
+  "edit.cardTitle": "بطاقتك كلاعب",
+  "edit.setupTitle": "أكمل بياناتك",
+  "edit.setupIntro": "أنت ضمن فريق {team}. أكمل بياناتك.",
+  "edit.cardIntro": "بطاقتك في فريق {team}.",
+  "edit.saveProfile": "حفظ بياناتي",
+  "edit.profileSaved": "تم حفظ بياناتك.",
+  "edit.profileSavedBody": "يمكن للمنظّمين الآن رؤية بياناتك في فريق {team}.",
+  "edit.onlyYourCard": "تظهر بطاقتك وحدها.",
   "edit.title": "تعديل التسجيل",
   "edit.intro":
-    "أدخل رقم التسجيل من رسالة التأكيد. وسنرسل رمزًا إلى بريد قائد الفريق للتأكد من هويتك.",
-  "edit.hintReference": "يبدو بهذا الشكل KSU-26-4KQ7TN.",
+    "أدخل رقم التسجيل. وسنرسل رمزًا إلى بريد قائد الفريق للتأكد من هويتك.",
+  "edit.hintReference": "يبدو بهذا الشكل ESC-26-4KQ7TNA.",
   "edit.adminLabel": "رمز المنظّم",
   "edit.adminPlaceholder": "رمز المنظّم",
-  "edit.introReference": "أدخل رقم التسجيل من رسالة التأكيد، وسنرسل رمزًا إلى بريد قائد الفريق.",
+  "edit.introReference": "أدخل رقم التسجيل وسنرسل رمزًا إلى بريد قائد الفريق.",
   "edit.introOrganiser": "أدخل رمز المنظّم لفتح هذا التسجيل دون الوصول إلى بريد القائد.",
   "edit.useEmailCode": "استخدام رمز البريد بدلًا من ذلك",
   "edit.organiserAsk": "منظّم؟ لا تستطيع الوصول إلى بريد القائد؟",
@@ -787,7 +1088,7 @@ export const AR: Record<MessageKey, string> = {
   "edit.somethingWrong": "حدث خطأ ما. حاول مرة أخرى.",
   "edit.couldNotOpen": "تعذّر فتح هذا التسجيل. يرجى البدء من جديد.",
   "edit.referenceLabel": "رقم التسجيل",
-  "edit.referencePlaceholder": "KSU-26-XXXXXX",
+  "edit.referencePlaceholder": "ESC-26-XXXXXXX",
   "edit.getCode": "أرسل لي رمزًا",
   "edit.sending": "جارٍ الإرسال…",
   "edit.codeSent": "أرسلنا رمزًا إلى {email}.",
@@ -796,15 +1097,15 @@ export const AR: Record<MessageKey, string> = {
   "edit.opening": "جارٍ الفتح…",
   "edit.changeReference": "استخدام رقم آخر",
   "edit.organiserLabel": "رمز دخول المنظّمين",
-  "edit.organiserHint": "للمنظّمين فقط — يفتح الفريق دون إرسال بريد للقائد.",
+  "edit.organiserHint": "للمنظّمين فقط.",
   "edit.organiserOpen": "فتح كمنظّم",
   "edit.organiserBanner": "تم الفتح كمنظّم — لم يُرسل أي بريد للفريق.",
   "edit.bannerOrganiser":
-    "تم الفتح كمنظّم، دون رمز البريد الخاص بقائد الفريق. الحفظ سيغيّر ما يراه {team}.",
+    "تم الفتح كمنظّم. الحفظ يغيّر ما يراه {team}.",
   "edit.bannerTeamFallback": "هذا الفريق",
   "edit.introCode": "أدخل الرمز المكوّن من ٦ أرقام الذي أرسلناه إلى {email}.",
   "edit.emailFallback": "قائد فريقك",
-  "edit.leaderInboxNote": "يتم تأكيد الفرق عبر بريد قائد الفريق.",
+  "edit.leaderInboxNote": "يُؤكَّد عبر بريد قائد الفريق.",
   "edit.checkSpam": "لم تجده؟ تحقّق من مجلد الرسائل غير المرغوب فيها.",
   "edit.checkSpamBody": "فكثيرًا ما تضع الفلاتر الجامعية هذه الرسائل هناك.",
   "edit.saved": "تم حفظ التغييرات",
@@ -814,24 +1115,24 @@ export const AR: Record<MessageKey, string> = {
   "rulebook.none": "(لا توجد أنظمة بعد)",
   "rulebook.title": "دفاتر أنظمة البطولة",
   "rulebook.intro":
-    "اقرأها قبل الإرسال. لن يُرسل النموذج تسجيلك حتى تقرأ دفتر أنظمة لعبتك حتى نهايته وتؤكّد أنك قرأته.",
+    "اقرأ دفتر أنظمة لعبتك قبل الإرسال. مرّر إلى النهاية لفتح النموذج.",
   "rulebook.open": "افتح في صفحة جديد",
   "rulebook.download": "تنزيل",
   "rulebook.notPublished":
-    "لم ينشر المنظّمون دفاتر الأنظمة بعد. ستظهر هنا فور نشرها — وسيُطلب منك قراءة أنظمة لعبتك قبل إرسال تسجيلك.",
+    "لم تُنشر دفاتر الأنظمة بعد. عليك قراءة أنظمة لعبتك قبل الإرسال.",
   "rulebook.viewerLabel": "دفتر أنظمة {game} بصيغة PDF",
   "rulebook.viewerFallback":
-    "إذا لم يظهر دفتر الأنظمة أعلاه، افتحه في صفحة جديد — وتبقى مطالبتك بقراءته قبل الإرسال.",
+    "إن لم يظهر، افتحه في صفحة جديدة. وتبقى قراءته مطلوبة.",
   "rulebook.loading": "جارٍ تحميل دفتر الأنظمة…",
   "rulebook.scrollHint":
-    "مرّر إلى نهاية دفتر الأنظمة. تبقى صفحة الإرسال مقفلة حتى تصل إلى النهاية.",
-  "rulebook.continue": "قرأته — الانتقال إلى صفحة الإرسال",
+    "مرّر إلى النهاية لفتح صفحة الإرسال.",
+  "rulebook.continue": "العودة إلى الإرسال",
   "rulebook.continueHint":
-    "يُتاح هذا الزر بعد التمرير إلى نهاية دفتر الأنظمة أعلاه. وستضع علامة في صفحة الإرسال لتأكيد قراءتك.",
+    "يُتاح عند النهاية. وستضع العلامة في صفحة الإرسال.",
   "rules.acceptWithRulebook": "قرأت دفتر أنظمة {game} وأوافق على الالتزام بأنظمة البطولة",
   "rules.acceptStandalone": "أوافق على الالتزام بأنظمة البطولة",
   "rules.consequence": "مخالفة أي نظام قد تؤدي إلى الاستبعاد وإخراج الفريق من البطولة.",
-  "rules.mustOpen": "افتح دفتر أنظمة لعبتك أولًا — يتفعّل الخيار بعد التمرير إلى نهايته.",
+  "rules.mustOpen": "افتح دفتر أنظمة لعبتك أولًا — مرّر إلى النهاية لتفعيل الخيار.",
   "rules.readIt": "اقرأ دفتر أنظمة {game}",
 };
 
@@ -896,12 +1197,12 @@ const MESSAGE_AR: Record<string, string> = {
     "يجب أن يحتوي اسم الفريق على حروف، لا أرقامًا أو رموزًا فقط",
 
   /* division and game */
-  "Choose your division": "اختر جنسك",
-  "Invalid division": "قسم غير صالح",
+  "Choose your section": "اختر قسمك",
+  "Invalid section": "قسم غير صالح",
   "Choose a game": "اختر لعبة",
   "Choose a game from the list": "اختر لعبة من القائمة",
   "Invalid game": "لعبة غير متاحة",
-  "Game is not offered in this division": "هذه اللعبة غير متاحة للجنس المُختار",
+  "Game is not offered in this section": "هذه اللعبة غير متاحة للقسم المُختار",
 
   /* consent */
   "Please confirm you have read and accept the notice":
@@ -934,7 +1235,7 @@ const MESSAGE_AR: Record<string, string> = {
     "اختر جامعة اللاعب أولًا — يجب أن يكون البريد على نطاقها",
   "Invalid university": "جامعة غير صالحة",
   "University is outside the allowed provinces": "الجامعة خارج المناطق المسموح بها",
-  "This university is not available for this division": "هذه الجامعة غير متاحة في هذا القسم",
+  "This university is not available for this section": "هذه الجامعة غير متاحة في هذا القسم",
   "Enter a valid email address": "أدخل بريدًا إلكترونيًا صحيحًا",
   "Must be a university email ending in .edu.sa": "يجب أن يكون بريدًا جامعيًا ينتهي بـ .edu.sa",
   "Email must end in .edu.sa": "يجب أن ينتهي البريد بـ .edu.sa",
@@ -1014,8 +1315,8 @@ const MESSAGE_PATTERNS_AR: { pattern: RegExp; build: (match: RegExpMatchArray) =
     build: (m) => `يجب أن يحتوي اسم الفريق على ${arabicNumber(m[1])} حروف على الأقل`,
   },
   {
-    pattern: /^(.+) is not offered in the (male|female) division$/,
-    build: (m) => `${m[1]} غير متاحة في ${m[2] === "female" ? "قسم الإناث" : "قسم الذكور"}`,
+    pattern: /^(.+) is not offered in the (male|female) section$/,
+    build: (m) => `${m[1]} غير متاحة في ${m[2] === "female" ? "قسم الطالبات" : "قسم الطلاب"}`,
   },
   {
     pattern: /^A roster can hold at most (\d+) people$/,
@@ -1170,6 +1471,56 @@ export function roleLabelKey(role: string): MessageKey {
   if (role === "SUBSTITUTE") return "roster.substitute";
   if (role === "COACH") return "roster.coach";
   return "roster.starter";
+}
+
+/**
+ * The Arabic for a sponsor's role line, when the role is one of the usual tiers.
+ *
+ * Sponsor roles are free text — the organisers type whatever their agreement calls the
+ * tier — so this cannot translate everything, and it should not pretend to. It maps the
+ * tiers that actually appear on Saudi sponsorship boards, and **returns the English
+ * unchanged for anything it does not recognise**, which is the honest failure: an
+ * organiser who invents "Regional Activation Partner" sees their own words rather than a
+ * wrong translation or a blank.
+ *
+ * Matching ignores case, surrounding space and repeated spaces, so "Platinum  sponsor"
+ * still translates. Both the English and the Arabic of each entry are keys, so a role
+ * already written in Arabic round-trips unchanged.
+ */
+const SPONSOR_ROLE_AR: Record<string, string> = {
+  "diamond sponsor": "راعٍ ماسي",
+  "platinum sponsor": "راعٍ بلاتيني",
+  "gold sponsor": "راعٍ ذهبي",
+  "silver sponsor": "راعٍ فضي",
+  "bronze sponsor": "راعٍ برونزي",
+  "strategic sponsor": "راعٍ استراتيجي",
+  "strategic partner": "شريك استراتيجي",
+  "official sponsor": "الراعي الرسمي",
+  "official partner": "الشريك الرسمي",
+  "official bank": "البنك الرسمي",
+  "official telecom": "الاتصالات الرسمية",
+  "official payment partner": "شريك الدفع الرسمي",
+  "official airline": "الناقل الرسمي",
+  "official beverage": "المشروب الرسمي",
+  "technology partner": "شريك تقني",
+  "technical partner": "شريك تقني",
+  "media partner": "شريك إعلامي",
+  "community partner": "شريك مجتمعي",
+  "education partner": "شريك تعليمي",
+  "title sponsor": "الراعي الرئيسي",
+  "main sponsor": "الراعي الرئيسي",
+  "principal sponsor": "الراعي الرئيسي",
+  "host sponsor": "الراعي المستضيف",
+  "media sponsor": "راعٍ إعلامي",
+  "supporting sponsor": "راعٍ داعم",
+  "partner": "شريك",
+  "sponsor": "راعٍ",
+};
+
+export function sponsorRoleLabel(role: string, language: Language): string {
+  if (language === "en" || !role.trim()) return role;
+  const key = role.trim().toLowerCase().replace(/\s+/g, " ");
+  return SPONSOR_ROLE_AR[key] ?? role;
 }
 
 export const STEP_BLURB_KEYS = [

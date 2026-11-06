@@ -34,7 +34,7 @@ export function Checkbox({
         onChange={(event) => onChange(event.target.checked)}
         className={cn(
           "peer size-5 cursor-pointer appearance-none rounded-md border bg-wall-950/60 transition-all",
-          "border-[rgba(148,196,208,0.3)]",
+          "border-[rgba(79, 182, 208,0.3)]",
           "checked:border-brand checked:bg-brand",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
           "disabled:cursor-not-allowed disabled:opacity-40",
@@ -65,7 +65,7 @@ export function CheckboxField({
     <label
       htmlFor={id}
       className={cn(
-        "flex cursor-pointer items-start gap-3 rounded-xl border border-[rgba(148,196,208,0.14)] bg-wall-950/40 p-3 transition-colors",
+        "flex cursor-pointer items-start gap-3 rounded-xl border border-[rgba(79, 182, 208,0.14)] bg-wall-950/40 p-3 transition-colors",
         "hover:border-brand/40",
         disabled && "cursor-not-allowed opacity-60",
       )}
@@ -73,7 +73,7 @@ export function CheckboxField({
       <Checkbox id={id} checked={checked} onChange={onChange} disabled={disabled} className="mt-0.5" />
       <span className="min-w-0">
         <span className="block text-xs font-semibold text-snow">{label}</span>
-        {hint && <span className="mt-0.5 block text-[11px] leading-relaxed text-ash">{hint}</span>}
+        {hint && <span className="mt-0.5 block text-[0.6875rem] leading-relaxed text-ash">{hint}</span>}
       </span>
     </label>
   );

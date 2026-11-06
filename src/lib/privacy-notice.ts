@@ -40,11 +40,14 @@ In a PostgreSQL database hosted by a cloud provider, and in email messages sent 
 For the duration of the tournament and a reasonable period afterwards for results, disputes and prize administration. After that it is deleted on request, or once it is no longer needed.
 
 ## Your choices
-Ask the organisers to correct anything inaccurate, to send you a copy of what is held about you, or to delete it. Quote the team's reference code (it looks like KSU-26-XXXXXX) so the entry can be found.
+Ask the organisers to correct anything inaccurate, to send you a copy of what is held about you, or to delete it. Quote the team's reference code (it looks like ESC-26-XXXXXXX) so the entry can be found.
 A member who does not want their details stored can simply not take part; there is no way to enter a team without the member details above, because they are what eligibility is checked against.
 
+## Promotion and media
+By registering, and by confirming their own email address, every member agrees that the organisers may use the information given to them by players and participants (names, team and university names, in-game tags, photographs and recordings of matches) for promotion and media purposes, including announcements, brackets, social media posts, articles and videos about {{tournament}} and later editions. Contact details such as email addresses, phone numbers and student IDs are not published.
+
 ## Consent
-The person submitting a registration is asked to confirm they have read this notice and that every member listed knows their details are being shared. The time that confirmation was given is recorded alongside the registration.`;
+The person submitting a registration is asked to confirm they have read this notice and that every member listed knows their details are being shared. Each other member agrees to this notice by confirming their own email address from the link they are sent, which links to this page. The time that confirmation was given is recorded alongside the registration.`;
 
 /**
  * The Arabic notice.
@@ -78,11 +81,14 @@ export const DEFAULT_PRIVACY_NOTICE_AR = `## ما الذي يُجمع
 طوال مدة البطولة وفترة معقولة بعدها للنتائج والاعتراضات وتسليم الجوائز. وبعد ذلك تُحذف بناءً على الطلب، أو عند انتهاء الحاجة إليها.
 
 ## خياراتك
-اطلب من المنظّمين تصحيح أي معلومة غير دقيقة، أو إرسال نسخة من البيانات المحفوظة عنك، أو حذفها. واذكر رقم تسجيل الفريق (يبدو بالشكل KSU-26-XXXXXX) لتسهيل العثور على التسجيل.
+اطلب من المنظّمين تصحيح أي معلومة غير دقيقة، أو إرسال نسخة من البيانات المحفوظة عنك، أو حذفها. واذكر رقم تسجيل الفريق (يبدو بالشكل ESC-26-XXXXXXX) لتسهيل العثور على التسجيل.
 ومن لا يرغب في حفظ بياناته يمكنه ببساطة عدم المشاركة؛ فلا سبيل لتسجيل فريق دون بيانات الأعضاء المذكورة أعلاه، لأنها الأساس الذي تُفحص به الأهلية.
 
+## الترويج والإعلام
+بالتسجيل، وبتأكيد كل عضو لبريده الإلكتروني، يوافق جميع الأعضاء على أن للمنظّمين استخدام المعلومات التي يقدّمها اللاعبون والمشاركون (الأسماء، وأسماء الفرق والجامعات، والمعرّفات داخل اللعبة، والصور وتسجيلات المباريات) لأغراض الترويج والإعلام، ومنها الإعلانات وجداول المنافسات ومنشورات التواصل الاجتماعي والمقالات ومقاطع الفيديو عن {{tournament}} والنسخ اللاحقة. ولا تُنشر بيانات التواصل مثل البريد الإلكتروني ورقم الجوال والرقم الجامعي.
+
 ## الموافقة
-يُطلب من الشخص الذي يرسل التسجيل تأكيد أنه قرأ هذا الإشعار وأن جميع الأعضاء المذكورين يعرفون أن بياناتهم ستُشارك. ويُسجَّل وقت إعطاء هذه الموافقة مع التسجيل.`;
+يُطلب من الشخص الذي يرسل التسجيل تأكيد أنه قرأ هذا الإشعار وأن جميع الأعضاء المذكورين يعرفون أن بياناتهم ستُشارك. ويوافق كل عضو آخر على هذا الإشعار بتأكيد بريده الإلكتروني من الرابط المرسل إليه، وهو رابط يؤدي إلى هذه الصفحة. ويُسجَّل وقت إعطاء هذه الموافقة مع التسجيل.`;
 
 /** Advisory shown to the organisers, not to entrants. */
 export const PRIVACY_NOTICE_ADVICE =

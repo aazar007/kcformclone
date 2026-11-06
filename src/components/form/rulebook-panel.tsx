@@ -102,8 +102,8 @@ export function RulebookPanel({
      how anyone discovers them. */
   if (!anyPublished) {
     return (
-      <div className="panel mx-auto max-w-2xl rounded-3xl p-6 text-center sm:p-8">
-        <span className="mx-auto flex size-12 items-center justify-center rounded-2xl border border-[rgba(148,196,208,0.2)] bg-wall-950/60 text-ash">
+      <div className="panel mx-auto max-w-2xl rounded-3xl p-6 text-center sm:p-8 3xl:max-w-3xl">
+        <span className="mx-auto flex size-12 items-center justify-center rounded-2xl border border-[rgba(79, 182, 208,0.2)] bg-wall-950/60 text-ash">
           <BookOpen className="size-5" />
         </span>
         <h2 className="mt-4 font-display text-lg tracking-wide text-snow">
@@ -117,7 +117,7 @@ export function RulebookPanel({
   }
 
   return (
-    <div className="panel mx-auto max-w-4xl rounded-3xl p-5 sm:p-7">
+    <div className="panel mx-auto max-w-4xl rounded-3xl p-5 sm:p-7 3xl:max-w-5xl 4xl:max-w-6xl">
       <div className="flex flex-wrap items-start gap-3">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-brand/40 bg-brand/10 text-brand">
           <BookOpen className="size-4" />
@@ -147,7 +147,7 @@ export function RulebookPanel({
       </div>
 
       {/* ---- Choose a game ------------------------------------------------ */}
-      <p className="mt-4 text-[11px] font-bold tracking-[0.14em] text-ash uppercase">
+      <p className="mt-4 text-[0.6875rem] font-bold tracking-[0.14em] text-ash uppercase">
         {t("rulebook.chooseGame")}
       </p>
       <div role="tablist" aria-label={t("rulebook.chooseGame")} className="mt-2 flex flex-wrap gap-1.5">
@@ -167,22 +167,22 @@ export function RulebookPanel({
                 active
                   ? "border-brand/60 bg-brand/12 text-brand"
                   : available
-                    ? "border-[rgba(148,196,208,0.16)] text-ash hover:border-brand/40 hover:text-snow"
-                    : "cursor-not-allowed border-[rgba(148,196,208,0.1)] text-ash/40",
+                    ? "border-[rgba(79, 182, 208,0.16)] text-ash hover:border-brand/40 hover:text-snow"
+                    : "cursor-not-allowed border-[rgba(79, 182, 208,0.1)] text-ash/40",
               )}
             >
               {game.name}
               {/* Say which games have no rules yet, rather than offering a tab that
                   would open nothing. */}
               {!available && (
-                <span className="ms-1.5 text-[10px] font-normal">{t("rulebook.none")}</span>
+                <span className="ms-1.5 text-[0.625rem] font-normal">{t("rulebook.none")}</span>
               )}
             </button>
           );
         })}
       </div>
 
-      <p className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/8 px-3 py-2.5 text-[11px] leading-relaxed text-amber-100/90">
+      <p className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/8 px-3 py-2.5 text-[0.6875rem] leading-relaxed text-amber-100/90">
         {t("rulebook.intro")}
       </p>
 
@@ -201,7 +201,7 @@ export function RulebookPanel({
             onReadToEnd={() => current && onViewed(current.id)}
           />
 
-          <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-ash/80">
+          <p className="mt-3 flex items-start gap-1.5 text-[0.6875rem] leading-relaxed text-ash/80">
             <FileText className="mt-px size-3.5 shrink-0" />
             <span>{t("rulebook.viewerFallback")}</span>
           </p>
@@ -226,7 +226,7 @@ export function RulebookPanel({
                 {hasRead ? <Check className="size-4" /> : <Lock className="size-4" />}
                 {t("rulebook.continue")}
               </Button>
-              <p className="text-[11px] leading-relaxed text-ash">{t("rulebook.continueHint")}</p>
+              <p className="text-[0.6875rem] leading-relaxed text-ash">{t("rulebook.continueHint")}</p>
             </div>
           )}
         </>

@@ -229,6 +229,15 @@ const GREETING_TIMEOUT_MS = 10_000;
 const SOCKET_TIMEOUT_MS = 20_000;
 
 /**
+ * How long an idle pooled connection is kept.
+ *
+ * Long enough to cover the burst that follows a registration — the leader's
+ * receipt and every member's confirmation link are sent within the same second —
+ * and short enough that a finished request does not leave sockets open.
+ */
+const POOL_IDLE_TIMEOUT_MS = 10_000;
+
+/**
  * Live transports, keyed by the connection they represent.
  *
  * Keyed rather than one cached instance because there can now be two accounts, and
@@ -259,10 +268,38 @@ function transport(settings: ChannelSettings): Transporter {
     connectionTimeout: CONNECTION_TIMEOUT_MS,
     greetingTimeout: GREETING_TIMEOUT_MS,
     socketTimeout: SOCKET_TIMEOUT_MS,
+    /**
+     * **One handshake per burst, not one per message.**
+     *
+     * Without pooling every `sendMail` opened its own TCP + TLS connection,
+     * authenticated, sent, and closed. A registration sends the leader's receipt
+     * plus one confirmation link per member, so a three-person roster meant three
+     * full handshakes back to back — and because they were sent one after another,
+     * the last member's link left minutes after the first. They now share
+     * connections, which is what turns "one per recipient" into "one per batch".
+     */
+    pool: true,
+    maxConnections: 4,
+    maxMessages: 50,
+    idleTimeout: POOL_IDLE_TIMEOUT_MS,
   });
 
   transports.set(key, created);
   return created;
+}
+
+/**
+ * Close every pooled connection.
+ *
+ * A pooled transport keeps idle sockets open for a short while, which is what makes
+ * a burst of messages cheap. A one-shot script — the mail check, a CLI tool — has
+ * no burst to amortise it against, so it closes them and exits promptly instead of
+ * leaving Node alive until the idle timer expires.
+ */
+export async function closeMailTransports(): Promise<void> {
+  const open = Array.from(transports.values());
+  transports.clear();
+  await Promise.all(open.map((item) => Promise.resolve(item.close()).catch(() => {})));
 }
 
 /**
@@ -511,7 +548,7 @@ function bodyHtml(
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" dir="${emailDirection(language)}" style="max-width:480px;margin:0 auto;background:#082330;border:1px solid #14414f;border-radius:16px;">
       <tr>
         <td align="${rtl ? "right" : "left"}" style="padding:28px 28px 8px;">
-          <p style="margin:0;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#5cf0f7;font-weight:700;">KSU Crown</p>
+          <p style="margin:0;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#4fb6d0;font-weight:700;">KSU Crown</p>
           <h1 style="margin:8px 0 0;font-size:20px;color:#eaf7fb;">${copy.codeHeading}</h1>
         </td>
       </tr>
@@ -524,7 +561,7 @@ function bodyHtml(
       </tr>
       <tr>
         <td align="${rtl ? "right" : "left"}" style="padding:20px 28px;">
-          <p dir="ltr" style="margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:34px;letter-spacing:0.28em;color:#5cf0f7;font-weight:700;">${shownCode}</p>
+          <p dir="ltr" style="margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:34px;letter-spacing:0.28em;color:#4fb6d0;font-weight:700;">${shownCode}</p>
         </td>
       </tr>
       <tr>

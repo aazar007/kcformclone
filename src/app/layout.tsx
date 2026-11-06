@@ -1,33 +1,33 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { Archivo_Black, Inter, JetBrains_Mono, Tajawal } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 import { LANGUAGE_BOOTSTRAP_SCRIPT } from "@/lib/i18n";
 import "./globals.css";
 
 /**
- * Archivo Black stands in for the heavy condensed grotesque of the KSU Crown
- * wordmark, Inter carries the form UI, and JetBrains Mono renders IDs and the
- * registration reference where digits must line up.
+ * Self-hosted IBM Plex, in both scripts.
+ *
+ * The two faces are served from `public/fonts` and declared in `globals.css`, rather
+ * than pulled from a font CDN or next/font:
+ *
+ * - **They are the same design.** IBM Plex Sans carries the Latin, IBM Plex Sans
+ *   Arabic the Arabic, and the Arabic family also ships a Latin subset drawn to sit
+ *   with it. A sentence that mixes the two — a team name inside an Arabic sentence —
+ *   therefore stays one typeface instead of changing appearance mid-line.
+ * - **No third party on the critical path.** A webfont from another origin costs a
+ *   DNS lookup and a TLS handshake before the first glyph can paint, and a university
+ *   network that blocks that origin leaves the whole site in the fallback face.
+ * - **Nothing is fetched at build time**, so a CI machine without network can still
+ *   build the site.
+ *
+ * Only the four weights the interface actually uses are shipped (400/500/600/700),
+ * split by script, so a reader downloads the Arabic glyphs or the Latin ones — not
+ * both, and not the whole family.
+ *
+ * `JetBrains Mono` stays a Google font on purpose: it renders one-time codes, student
+ * numbers and reference codes, which are fixed-width Latin tokens and must not fall
+ * to a proportional face.
  */
-const display = Archivo_Black({
-  weight: "400",
-  subsets: ["latin"],
-  /* `--font-archivo`, not `--font-display`. `--font-display` is the composed
-     family list Tailwind exposes in `globals.css`, and the language rules there need
-     to name the raw family per language — which they cannot do while the raw and the
-     composed value share a name, because a declaration that reads its own property is
-     invalid at computed-value time and the winner between the two is decided by source
-     order. */
-  variable: "--font-archivo",
-  display: "swap",
-});
-
-const body = Inter({
-  subsets: ["latin"],
-  variable: "--font-body",
-  display: "swap",
-});
-
 const mono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono-var",
@@ -35,30 +35,52 @@ const mono = JetBrains_Mono({
 });
 
 /**
- * Tajawal, for Arabic.
+ * Consume the "View form" deep link before hydration.
  *
- * Arabic needs its own face rather than a Latin one with fallbacks. Inter and
- * Archivo Black are `latin`-subset fonts with **no Arabic glyphs at all**, so every
- * Arabic heading was silently falling through to whatever `system-ui` happened to be —
- * which differs per machine and looks nothing like the wordmark the design is built
- * around.
+ * The console links to `/?tab=register` so an organiser lands on the form. That query
+ * must not survive the visit: refreshing it used to re-open the form, and to anyone
+ * else the site appeared to have forgotten it has a home page.
  *
- * `latin` is included alongside `arabic` on purpose. An Arabic form still contains
- * Latin — the captain's team name, an email address, the digit on a player badge — and
- * a stack that hands those to a second family renders one sentence in two typefaces.
- * Tajawal's Latin is drawn to sit with its Arabic, so mixed text stays even.
+ * A React effect does the same thing later, but it runs only after hydration — so a
+ * refresh during a slow load, or a hydration failure, still saw `?tab=register`. Doing
+ * it in `<head>` removes the query while the HTML is still being parsed, before
+ * Next.js's router reads the address at all. `lang` is deliberately kept so a link
+ * that carried a language still opens in that language.
  *
- * Weights: 400 for body, 700 for the 63 `font-bold` uses, 800 to stand in for
- * Archivo Black's weight on the nine `font-display` headings. **Tajawal has no 600**, so
- * the 11 `font-semibold` uses resolve to the nearest declared weight (700) — worth
- * knowing before anyone "fixes" the missing weight.
+ * `tab=edit` is left alone: the confirmation email deliberately points at an address
+ * meant to be reopened.
  */
-const arabic = Tajawal({
-  weight: ["400", "700", "800"],
-  subsets: ["arabic", "latin"],
-  variable: "--font-arabic",
-  display: "swap",
-});
+const FORM_DEEP_LINK_BOOTSTRAP_SCRIPT = `(function(){try{
+if(location.pathname!=="/")return;
+var u=new URL(location.href);
+if(u.searchParams.get("tab")!=="register")return;
+u.searchParams.delete("tab");
+history.replaceState(history.state,"",u.pathname+(u.search||"")+u.hash);
+}catch(e){}})();`;
+
+/**
+ * Decide the headline's reveal state **before the first paint**.
+ *
+ * The animation starts with the sentence hidden, and it used to hide it from a React
+ * effect — which runs after hydration, so the full sentence painted first and was then
+ * blanked. That flash is what this script removes: it runs while `<head>` is being
+ * parsed, before a single pixel of the body is drawn.
+ *
+ * Three states, set on `<html>`:
+ *
+ * - `pending` — JavaScript is available and motion is welcome. The sentence is masked
+ *   to nothing by CSS, and the component animates it in on mount.
+ * - `done` — the visitor asked for reduced motion, so the sentence is simply shown.
+ * - *(absent)* — no JavaScript at all, since only this script can set the attribute.
+ *   The default CSS leaves the sentence visible, so the headline still reads.
+ *
+ * Fixed string, no interpolation, so there is nothing to inject.
+ */
+const CROWN_REVEAL_BOOTSTRAP_SCRIPT = `(function(){try{
+var e=document.documentElement;
+var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+e.setAttribute("data-crown",reduce?"done":"pending");
+}catch(e){}})();`;
 
 export const metadata: Metadata = {
   title: "KSU Crown · Team Registration",
@@ -77,7 +99,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#243035",
+  themeColor: "#0a2129",
   width: "device-width",
   initialScale: 1,
 };
@@ -106,11 +128,39 @@ export default async function RootLayout({
       lang="ar"
       dir="rtl"
       suppressHydrationWarning
-      className={`${display.variable} ${body.variable} ${mono.variable} ${arabic.variable}`}
+      className={mono.variable}
     >
       <head>
         {/* A fixed string with no interpolation, so there is nothing to inject. */}
         <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: LANGUAGE_BOOTSTRAP_SCRIPT }} />
+        {/* Before the first paint, so the headline never flashes whole and then
+            disappears. See the note on `CROWN_REVEAL_BOOTSTRAP_SCRIPT`. */}
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: CROWN_REVEAL_BOOTSTRAP_SCRIPT }} />
+        {/* Runs before Next's router is hydrated, so the query never becomes the page's
+            permanent address. See the note on `FORM_DEEP_LINK_BOOTSTRAP_SCRIPT`. */}
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: FORM_DEEP_LINK_BOOTSTRAP_SCRIPT }} />
+        {/* Start the two faces the first screen needs while the HTML is still being
+            parsed. Everything else is requested by `@font-face` when a glyph needs it,
+            so this is a hint rather than a bundle: the regular weights carry the body
+            text, which is on screen before anything else.
+
+            `crossOrigin` is required even for same-origin fonts — a font is always
+            fetched in CORS mode, and without the attribute the preload is discarded as
+            a mismatch and the file is downloaded twice. */}
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href="/fonts/plex-sans/IBMPlexSans-Regular.woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href="/fonts/plex-sans-arabic/ibm-plex-sans-arabic-arabic-400-normal.woff2"
+          crossOrigin="anonymous"
+        />
       </head>
       <body className="min-h-screen antialiased">{children}</body>
     </html>

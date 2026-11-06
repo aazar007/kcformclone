@@ -41,12 +41,41 @@ export interface University {
    * exist would lock out every real student at that institution.
    */
   studentDomains?: string[];
+  /**
+   * How the student's number is embedded in their address, when it is embedded at all.
+   *
+   * Every institution on the list issues addresses as `<number>@<domain>`, but two add
+   * literal text around the number:
+   *
+   *   s441234567@seu.edu.sa     → prefix "s"
+   *   441234567KSA@aou.edu.sa   → suffix "KSA"
+   *
+   * Recording it here is what lets the form fill the student-ID field from the address the
+   * student is already typing, and — just as important — lets it *not* fill a wrong number
+   * for an address that merely looks numeric. `undefined` means "the local part is the
+   * number and nothing else".
+   */
+  studentIdFormat?: StudentIdFormat;
   /** Shown as a hint when the institution's domain is unusual. */
   note?: string;
   /** Derived from `city` — the province this institution competes in. */
   region: SaudiRegion;
   /** True for institutions the organisers added from the admin console. */
   addedByOrganisers?: boolean;
+}
+
+/**
+ * Literal text around the student number inside an email address.
+ *
+ * Kept as data rather than as a regular expression per institution: a pattern is harder to
+ * read at a glance and easy to write in a way that matches too much. The matcher that
+ * consumes this lives in `validation.ts`, next to the student-ID rule it has to agree with.
+ */
+export interface StudentIdFormat {
+  /** Text before the number, e.g. `"s"` for `s441234567@seu.edu.sa`. */
+  prefix?: string;
+  /** Text after the number, e.g. `"KSA"` for `441234567KSA@aou.edu.sa`. */
+  suffix?: string;
 }
 
 /** The curated list, before the province is derived from each city. */
@@ -68,14 +97,15 @@ const BASE_UNIVERSITIES: Omit<University, "region">[] = [
   { id: "uoh", name: "University of Hail", nameAr: "جامعة حائل", city: "Hail", sector: "Government", emailDomains: ["uoh.edu.sa"] },
   { id: "ju", name: "Al Jouf University", nameAr: "جامعة الجوف", city: "Sakaka", sector: "Government", emailDomains: ["ju.edu.sa"] },
   { id: "bu", name: "Al Baha University", nameAr: "جامعة الباحة", city: "Al Baha", sector: "Government", emailDomains: ["bu.edu.sa"] },
-  { id: "psau", name: "Prince Sattam bin Abdulaziz University", nameAr: "جامعة الأمير سطام بن عبدالعزيز", city: "Al-Kharj", sector: "Government", emailDomains: ["psau.edu.sa"] },
+  { id: "psau", name: "Prince Sattam bin Abdulaziz University", nameAr: "جامعة الأمير سطام بن عبدالعزيز", city: "Al-Kharj", sector: "Government", emailDomains: ["psau.edu.sa"], studentDomains: ["std.psau.edu.sa"] },
   { id: "pnu", name: "Princess Nourah bint Abdulrahman University", nameAr: "جامعة الأميرة نورة بنت عبدالرحمن", city: "Riyadh", sector: "Government", womenOnly: true, emailDomains: ["pnu.edu.sa"] },
   { id: "ksau-hs", name: "King Saud bin Abdulaziz University for Health Sciences", nameAr: "جامعة الملك سعود بن عبدالعزيز للعلوم الصحية", city: "Riyadh", sector: "Government", emailDomains: ["ksau-hs.edu.sa"] },
-  { id: "seu", name: "Saudi Electronic University", nameAr: "الجامعة السعودية الإلكترونية", city: "Riyadh", sector: "Government", emailDomains: ["seu.edu.sa"] },
+  { id: "seu", name: "Saudi Electronic University", nameAr: "الجامعة السعودية الإلكترونية", city: "Riyadh", sector: "Government", emailDomains: ["seu.edu.sa"], studentIdFormat: { prefix: "s" } },
+  { id: "tvtc", name: "Technical and Vocational Training Corporation", nameAr: "المؤسسة العامة للتدريب التقني والمهني", city: "Riyadh", sector: "Government", emailDomains: ["tvtc.edu.sa"] },
   { id: "iu", name: "Islamic University of Madinah", nameAr: "الجامعة الإسلامية بالمدينة المنورة", city: "Madinah", sector: "Government", emailDomains: ["iu.edu.sa"] },
-  { id: "mu", name: "Majmaah University", nameAr: "جامعة المجمعة", city: "Al-Majmaah", sector: "Government", emailDomains: ["mu.edu.sa"] },
-  { id: "su", name: "Shaqra University", nameAr: "جامعة شقراء", city: "Shaqra", sector: "Government", emailDomains: ["su.edu.sa"] },
-  { id: "imamu", name: "Imam Muhammad ibn Saud Islamic University", nameAr: "جامعة الإمام محمد بن سعود الإسلامية", city: "Riyadh", sector: "Government", emailDomains: ["imamu.edu.sa"] },
+  { id: "mu", name: "Majmaah University", nameAr: "جامعة المجمعة", city: "Al-Majmaah", sector: "Government", emailDomains: ["mu.edu.sa"], studentDomains: ["s.mu.edu.sa"] },
+  { id: "su", name: "Shaqra University", nameAr: "جامعة شقراء", city: "Shaqra", sector: "Government", emailDomains: ["su.edu.sa"], studentDomains: ["std.su.edu.sa"], studentIdFormat: { prefix: "s" } },
+  { id: "imamu", name: "Imam Muhammad ibn Saud Islamic University", nameAr: "جامعة الإمام محمد بن سعود الإسلامية", city: "Riyadh", sector: "Government", emailDomains: ["imamu.edu.sa"], studentDomains: ["sm.imamu.edu.sa"] },
   { id: "uj", name: "University of Jeddah", nameAr: "جامعة جدة", city: "Jeddah", sector: "Government", emailDomains: ["uj.edu.sa"] },
   { id: "tu", name: "Taif University", nameAr: "جامعة الطائف", city: "Taif", sector: "Government", emailDomains: ["tu.edu.sa"] },
   { id: "uhb", name: "University of Hafr Al Batin", nameAr: "جامعة حفر الباطن", city: "Hafr Al Batin", sector: "Government", emailDomains: ["uhb.edu.sa"] },
@@ -86,11 +116,11 @@ const BASE_UNIVERSITIES: Omit<University, "region">[] = [
   { id: "alfaisal", name: "Alfaisal University", nameAr: "جامعة الفيصل", city: "Riyadh", sector: "Private", emailDomains: ["alfaisal.edu"], note: "Alfaisal uses .edu rather than .edu.sa" },
   { id: "effat", name: "Effat University", nameAr: "جامعة عفت", city: "Jeddah", sector: "Private", womenOnly: true, emailDomains: ["effatuniversity.edu.sa"] },
   { id: "yu", name: "Al Yamamah University", nameAr: "جامعة اليمامة", city: "Riyadh", sector: "Private", emailDomains: ["yu.edu.sa"] },
-  { id: "dau", name: "Dar Al Uloom University", nameAr: "جامعة دار العلوم", city: "Riyadh", sector: "Private", emailDomains: ["dau.edu.sa"] },
-  { id: "aou", name: "Arab Open University", nameAr: "الجامعة العربية المفتوحة", city: "Riyadh", sector: "Private", emailDomains: ["aou.edu.sa"] },
+  { id: "dau", name: "Dar Al Uloom University", nameAr: "جامعة دار العلوم", city: "Riyadh", sector: "Private", emailDomains: ["dau.edu.sa"], studentDomains: ["du.edu.sa", "dau.edu.sa"] },
+  { id: "aou", name: "Arab Open University", nameAr: "الجامعة العربية المفتوحة", city: "Riyadh", sector: "Private", emailDomains: ["aou.edu.sa"], studentIdFormat: { suffix: "KSA" } },
   { id: "ubt", name: "University of Business and Technology", nameAr: "جامعة الأعمال والتكنولوجيا", city: "Jeddah", sector: "Private", emailDomains: ["ubt.edu.sa"] },
-  { id: "um", name: "AlMaarefa University", nameAr: "جامعة المعرفة", city: "Riyadh", sector: "Private", emailDomains: ["um.edu.sa"] },
-  { id: "riyadh", name: "Riyadh Elm University", nameAr: "جامعة رياض العلم", city: "Riyadh", sector: "Private", emailDomains: ["riyadh.edu.sa"] },
+  { id: "um", name: "AlMaarefa University", nameAr: "جامعة المعرفة", city: "Riyadh", sector: "Private", emailDomains: ["um.edu.sa"], studentDomains: ["student.um.edu.sa"] },
+  { id: "riyadh", name: "Riyadh Elm University", nameAr: "جامعة رياض العلم", city: "Riyadh", sector: "Private", emailDomains: ["riyadh.edu.sa"], studentDomains: ["student.riyadh.edu.sa"] },
   { id: "ibnsina", name: "Ibn Sina National College", nameAr: "كلية ابن سينا الأهلية", city: "Jeddah", sector: "Private", emailDomains: ["ibnsina.edu.sa"] },
   { id: "sr", name: "Sulaiman Al Rajhi University", nameAr: "جامعة سليمان الراجحي", city: "Al-Bukayriyah", sector: "Private", emailDomains: ["sr.edu.sa"] },
   { id: "bmc", name: "Batterjee Medical College", nameAr: "كلية البترجي الطبية", city: "Jeddah", sector: "Private", emailDomains: ["bmc.edu.sa"] },

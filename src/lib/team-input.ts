@@ -36,6 +36,10 @@ export function toTeamInput(data: RegistrationPayload): TeamInput {
       phone: member.phone,
       role: member.role,
       requirements: member.requirements,
+      /* Carried from a teammate who completed their details before submission.
+         Absent for everyone else, which is what `memberRows` reads as "pending". */
+      profileCompletedAt: member.profileCompletedAt ?? null,
+      confirmTokenHash: member.confirmTokenHash ?? null,
     })),
   };
 }

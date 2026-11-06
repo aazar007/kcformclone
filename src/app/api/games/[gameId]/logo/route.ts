@@ -35,8 +35,13 @@ export async function GET(
         "Content-Security-Policy": "default-src 'none'; sandbox",
         /* A year, immutable — which is only safe because callers version the URL
            with the logo's `updatedAt`. Replacing a logo produces a new URL, so
-           nothing stale can be served; see `listGameLogoVersions`. */
-        "Cache-Control": "public, max-age=31536000, immutable",
+           nothing stale can be served; see `listGameLogoVersions`.
+
+           `stale-while-revalidate` covers the one case `immutable` does not: a client
+           that ignores it and revalidates anyway gets the cached bytes immediately while
+           the check happens behind it, instead of waiting on a database read for an image
+           it already has. */
+        "Cache-Control": "public, max-age=31536000, immutable, stale-while-revalidate=86400",
       },
     });
   } catch (error) {

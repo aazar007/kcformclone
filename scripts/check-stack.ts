@@ -12,7 +12,7 @@
 import { EXPECTED_SCRIPT_VERSION, deploymentId, fail, loadEnv, ping } from "./lib/sheet-client";
 import { adminHref, staffHref } from "../src/lib/admin-path";
 import { adminSecretIsHashed, adminTwoStep } from "../src/lib/admin-auth";
-import { CHANNEL_PREFIX, channelSettings, sendMail, type MailChannel } from "../src/lib/mailer";
+import { CHANNEL_PREFIX, channelSettings, closeMailTransports, sendMail, type MailChannel } from "../src/lib/mailer";
 import { looksLikeSheetUrl, sheetUrl } from "../src/lib/sheets";
 import { registrationCounts } from "../src/lib/store";
 
@@ -481,4 +481,4 @@ async function checkConsole() {
   console.log("  lines above after any rotation.");
 }
 
-main().catch((error) => fail((error as Error).message));
+main().catch((error) => fail((error as Error).message)).finally(() => closeMailTransports());

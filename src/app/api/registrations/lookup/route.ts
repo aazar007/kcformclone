@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { NextResponse, after } from "next/server";
-import { LOCKED_OUT_MESSAGE, adminLogin, adminSecret } from "@/lib/admin-auth";
+import { LOCKED_OUT_MESSAGE, adminLogin, adminSecret, hasAdminSession } from "@/lib/admin-auth";
 import { loadConfig } from "@/lib/config-store";
 import { databaseConfigured } from "@/lib/db";
 import { digitsOnly } from "@/lib/i18n";
@@ -35,6 +35,13 @@ import {
   pruneOtps,
 } from "@/lib/store";
 import { leaderEmail, teamToDraft } from "@/lib/team-draft";
+import {
+  accessRoleFor,
+  memberRole,
+  maySeeRoster,
+  proofScope,
+  type AccessRole,
+} from "@/lib/team-access";
 import { getEnv } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
@@ -100,10 +107,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Malformed request body" }, { status: 400 });
   }
 
-  const raw = body as { reference?: unknown; code?: unknown; adminSecret?: unknown };
+  const raw = body as {
+    reference?: unknown;
+    code?: unknown;
+    adminSecret?: unknown;
+    email?: unknown;
+  };
   const reference = (typeof raw?.reference === "string" ? raw.reference : "").trim().toUpperCase();
   const code = digitsOnly(typeof raw?.code === "string" ? raw.code : "");
   const presentedAdminSecret = typeof raw?.adminSecret === "string" ? raw.adminSecret : "";
+  /* The address being claimed. Optional for compatibility with links minted before
+     it was asked for, in which case the leader's address is assumed — which is
+     exactly what those links meant. */
+  const claimedEmail =
+    typeof raw?.email === "string" ? normaliseEmail(raw.email) : "";
 
   if (!reference) {
     return NextResponse.json({ error: "Enter the reference code from your confirmation" }, { status: 400 });
@@ -111,6 +128,45 @@ export async function POST(request: Request) {
 
   try {
     const team = await findTeamByReference(reference);
+
+    /* A ban is a decision about the entry, so the edit flow is closed to it. The
+       console can still read and unban it. */
+    if (team?.bannedAt) {
+      return NextResponse.json(
+        {
+          error: "This registration has been suspended by the organisers.",
+          banned: true,
+        },
+        { status: 403 },
+      );
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* Who is claiming to be here?                                       */
+    /* ---------------------------------------------------------------- */
+    /*
+     * The reference names a team; the address names a person on it. Only a pair that
+     * actually belongs together has an identity, and only that identity is ever sent
+     * a code — so an address with no row on this team gets the same answer as a
+     * reference that does not exist, and learns nothing from it.
+     *
+     * The leader's address is the fallback for links minted before the address was
+     * asked for: those links meant "the leader", so assuming them changes nothing.
+     */
+    const identified = team
+      ? claimedEmail
+        ? (team.members.find((member) => member.email.toLowerCase() === claimedEmail) ?? null)
+        : null
+      : null;
+
+    /* A ban covers everybody on the team. Checking the member's own flag as well as
+       the team's is what makes a per-player suspension close the same door. */
+    if (team && identified && (team.bannedAt || identified.bannedAt)) {
+      return NextResponse.json(
+        { error: "This registration has been suspended by the organisers.", banned: true },
+        { status: 403 },
+      );
+    }
 
     /* ---------------------------------------------------------------- */
     /* Organiser path — no emailed code.                                 */
@@ -170,10 +226,24 @@ export async function POST(request: Request) {
         ok: true,
         stage: "verified",
         openedAs: "organiser",
+        role: "ORGANISER" satisfies AccessRole,
         reference: team.reference,
         teamName: team.teamName,
-        proof: await makeProof(normaliseEmail(leaderAddress), "edit-access", team.id),
+        gameName: team.gameName,
+        proof: await makeProof(
+          normaliseEmail(leaderAddress),
+          "edit-access",
+          proofScope(team.id, "ORGANISER", ""),
+        ),
+        /* An organiser outranks every role in this flow, so the full editable draft
+           stays available to them — the console already grants this and more. */
         draft: teamToDraft(team, config),
+        roster: team.members.map((member) => ({
+          id: member.id,
+          position: member.position,
+          fullName: member.fullName,
+          role: memberRole(member.role),
+        })),
       });
     }
 
@@ -189,21 +259,34 @@ export async function POST(request: Request) {
      * reachable when `team` is real, because a fake identity's stored code is
      * never handed to anyone.
      */
-    const email = team ? leaderEmail(team) : await fakeLeaderEmail(reference);
-    if (team && !email) {
-      return NextResponse.json(
-        { error: "That registration has no contact address on file. Contact the organisers." },
-        { status: 409 },
-      );
-    }
-    const normalised = normaliseEmail(email as string);
+    /*
+     * The address a code would go to. For a real team this is the row the caller
+     * named — the leader's when they named nobody — and for anything else it is a
+     * deterministic stand-in that is never delivered.
+     */
+    const identity = team
+      ? claimedEmail
+        ? identified?.email ?? null
+        : leaderEmail(team)
+      : null;
+
+    const deliverable = Boolean(team && identity);
+    const normalised = normaliseEmail(
+      identity ?? (await fakeLeaderEmail(`${reference}:${claimedEmail}`)),
+    );
 
     /* ---------------------------------------------------------------- */
     /* Phase 1 — no code yet: send one to the leader.                    */
     /* ---------------------------------------------------------------- */
     if (!code) {
-      // Edits close with registration, so there is nothing to send a code for.
-      if (!(await loadConfig()).config.registrationOpen) {
+      /* Edits close with registration, so there is nothing to send a code for —
+         except for a signed-in organiser, who may reopen an entry after the window
+         has shut to correct it. */
+      const lookupConfig = (await loadConfig()).config;
+      if (
+        !lookupConfig.registrationOpen &&
+        !(lookupConfig.allowOrganiserEntriesClosed && (await hasAdminSession(request)))
+      ) {
         return NextResponse.json(
           { error: "Registration is closed, so registrations can no longer be edited." },
           { status: 403 },
@@ -256,7 +339,7 @@ export async function POST(request: Request) {
       const overGlobalCeiling =
         (await countAllRecentOtps("edit-access", otpRequestWindowStart())) >= (await otpGlobalMax());
 
-      if (!team && overGlobalCeiling) {
+      if (!deliverable && overGlobalCeiling) {
         console.warn(
           "[registrations:lookup] site-wide edit-code ceiling reached; answering normally " +
             "without creating a row for an unknown reference",
@@ -280,7 +363,7 @@ export async function POST(request: Request) {
          rather than to how long the process has been up. */
       void pruneOtps().catch(() => {});
 
-      if (team) {
+      if (deliverable) {
         /*
          * Sent **after** the response, on purpose.
          *
@@ -297,7 +380,7 @@ export async function POST(request: Request) {
          */
         after(async () => {
           try {
-            await sendOtpEmail(normalised, fresh, "edit-access", team.teamName, requestedLanguage(body));
+            await sendOtpEmail(normalised, fresh, "edit-access", team!.teamName, requestedLanguage(body));
           } catch (mailError) {
             await discardOtp(record.id).catch(() => {});
             console.error("[registrations:lookup] could not send the edit code:", mailError);
@@ -363,11 +446,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "That code has already been used. Start again to get a new code." }, { status: 400 });
     }
 
-    /* A code is only ever minted for a real team's identity in Phase 1 above and
-       never delivered for a fake one, so a correct guess against an unknown
-       reference is not just unlikely — it is unreachable. This check exists so
-       that invariant is enforced here too, rather than trusted silently. */
-    if (!team) {
+    /* A code is only ever minted for a real identity in Phase 1 above and never
+       delivered for a fake one, so a correct guess against an unknown reference or a
+       non-member address is not just unlikely — it is unreachable. This check
+       enforces that invariant rather than trusting it silently. */
+    if (!team || !identity) {
+      return NextResponse.json(
+        { error: "That code has expired. Start again to get a new one." },
+        { status: 400 },
+      );
+    }
+
+    const member = team.members.find(
+      (entry) => entry.email.toLowerCase() === normaliseEmail(identity),
+    );
+    if (!member) {
       return NextResponse.json(
         { error: "That code has expired. Start again to get a new one." },
         { status: 400 },
@@ -375,14 +468,61 @@ export async function POST(request: Request) {
     }
 
     const { config } = await loadConfig();
+    const role = accessRoleFor(
+      memberRole(member.role),
+      member.position === team.leaderIndex,
+    );
+
+    /* The proof names the team, the role and the row, so every endpoint that acts on
+       it can check its own part without re-deriving who this is from a reference
+       code the browser could have changed in between. */
+    const proof = await makeProof(
+      normalised,
+      "edit-access",
+      proofScope(team.id, role, member.id),
+    );
 
     return NextResponse.json({
       ok: true,
       stage: "verified",
+      role,
       reference: team.reference,
       teamName: team.teamName,
-      proof: await makeProof(normalised, "edit-access", team.id),
-      draft: teamToDraft(team, config),
+      gameName: team.gameName,
+      memberId: member.id,
+      proof,
+      /*
+       * **Only what the role may see.**
+       *
+       * A player gets their own card and nothing else — no sibling names, no
+       * addresses, no phone numbers. The leader gets every name and position so they
+       * can order the roster, but not the personal details behind those names, which
+       * were never theirs to know. An organiser's full draft is returned above.
+       */
+      self: {
+        fullName: member.fullName,
+        gameTag: member.gameTag,
+        studentId: member.studentId ?? "",
+        discord: member.discord,
+        phone: member.phone,
+        universityId: member.universityId,
+        universityName: member.universityName,
+        email: member.email,
+        role: memberRole(member.role),
+        requirements: Array.isArray(member.requirements) ? member.requirements : [],
+        completedAt: member.profileCompletedAt
+          ? member.profileCompletedAt.toISOString()
+          : null,
+      },
+      roster: maySeeRoster(role)
+        ? team.members.map((entry) => ({
+            id: entry.id,
+            position: entry.position,
+            fullName: entry.fullName,
+            role: memberRole(entry.role),
+          }))
+        : undefined,
+      requiresSetup: member.profileCompletedAt === null,
     });
   } catch (error) {
     console.error("[registrations:lookup]", error);

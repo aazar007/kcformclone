@@ -85,7 +85,7 @@ export function RequirementsSection({ config, patch }: SectionProps) {
                     <p className="truncate text-sm font-bold text-snow">
                       {requirement.label || "Untitled requirement"}
                     </p>
-                    <p className="font-mono text-[10px] text-ash">
+                    <p className="font-mono text-[0.625rem] text-ash">
                       id: {requirement.id} · {REQUIREMENT_TYPE_LABEL[requirement.type]}
                     </p>
                   </div>
@@ -147,7 +147,7 @@ export function RequirementsSection({ config, patch }: SectionProps) {
                   />
 
                   <div className="space-y-2">
-                    <span className="block text-[11px] font-bold tracking-[0.12em] text-ash uppercase">
+                    <span className="block text-[0.6875rem] font-bold tracking-[0.12em] text-ash uppercase">
                       Type
                     </span>
                     <Select
@@ -286,8 +286,8 @@ export function RequirementsSection({ config, patch }: SectionProps) {
               type="button"
               onClick={() => add(suggestion.requirement)}
               className={cn(
-                "flex items-center gap-2 rounded-xl border border-[rgba(148,196,208,0.18)] bg-wall-950/40 px-3 py-2",
-                "text-[11px] font-semibold text-ash transition-colors hover:border-brand/50 hover:text-snow",
+                "flex items-center gap-2 rounded-xl border border-[rgba(79, 182, 208,0.18)] bg-wall-950/40 px-3 py-2",
+                "text-[0.6875rem] font-semibold text-ash transition-colors hover:border-brand/50 hover:text-snow",
               )}
             >
               <Sparkles className="size-3.5 text-brand" />

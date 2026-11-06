@@ -41,7 +41,7 @@ export function PrivacyLanguageToggle({ current }: { current: Language }) {
       aria-label="Language / اللغة"
       lang="en"
       dir="ltr"
-      className="flex shrink-0 items-center gap-1 rounded-xl border border-[rgba(148,196,208,0.18)] bg-wall-950/50 p-1"
+      className="flex shrink-0 items-center gap-1 rounded-xl border border-[rgba(79, 182, 208,0.18)] bg-wall-950/50 p-1"
     >
       <Languages className="mx-1.5 size-3.5 shrink-0 text-ash" aria-hidden />
       {LANGUAGES.map((entry) => {
@@ -55,7 +55,7 @@ export function PrivacyLanguageToggle({ current }: { current: Language }) {
             lang={entry.id}
             onClick={() => select(entry.id)}
             className={cn(
-              "rounded-lg px-2.5 py-1 text-[11px] font-bold tracking-wide transition-colors",
+              "rounded-lg px-2.5 py-1 text-[0.6875rem] font-bold tracking-wide transition-colors",
               active ? "bg-brand/14 text-brand" : "text-ash hover:bg-wall-700/50 hover:text-snow",
             )}
           >

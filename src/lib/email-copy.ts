@@ -90,6 +90,17 @@ export interface EmailCopy {
   footer: string;
   subjectTeam: string;
   subjectConfirmed: string;
+
+  /* ------------------------ member confirmation ------------------------ */
+  subjectMemberConfirm: string;
+  memberConfirmHeading: string;
+  memberConfirmLead: string;
+  memberConfirmCta: string;
+  memberConfirmNote: string;
+  memberConfirmFooter: string;
+  /** Agreement sentence; `{link}` is replaced by the linked privacy-policy label. */
+  memberConfirmConsent: string;
+  memberConfirmPrivacyLink: string;
 }
 
 const EN: EmailCopy = {
@@ -179,6 +190,19 @@ const EN: EmailCopy = {
     "This message was sent because someone submitted a team registration with this address as the team leader's contact. If that was not you, reply to this email and we will remove it.",
   subjectTeam: "{team} — registration confirmed",
   subjectConfirmed: "Registration confirmed",
+
+  subjectMemberConfirm: "Complete your details — {team}",
+  memberConfirmHeading: "Complete your player details",
+  memberConfirmLead:
+    "The team leader of {team} entered your university and this email address for your place in {tournament}. Please complete the rest of your details so the organisers have them.",
+  memberConfirmCta: "Complete my details",
+  memberConfirmNote:
+    "This link belongs to your own address only. Until you complete your details your place stays marked as pending. The captain does not need to wait for you.",
+  memberConfirmFooter:
+    "If you do not recognise this team, you can ignore this message — nothing changes until you submit the form.",
+  memberConfirmConsent:
+    "By completing your details you agree to the {link}, including the use of the information you gave for promotion and media purposes.",
+  memberConfirmPrivacyLink: "Privacy Policy",
 };
 
 const AR: EmailCopy = {
@@ -262,6 +286,19 @@ const AR: EmailCopy = {
     "وصلتك هذه الرسالة لأن شخصًا أرسل تسجيل فريق بهذا البريد كبيان تواصل لقائد الفريق. وإن لم تكن أنت، فردّ على هذه الرسالة.",
   subjectTeam: "{team} — تم تأكيد التسجيل",
   subjectConfirmed: "تم تأكيد التسجيل",
+
+  subjectMemberConfirm: "أكمل بياناتك — {team}",
+  memberConfirmHeading: "أكمل بيانات اللاعب",
+  memberConfirmLead:
+    "أدخل قائد فريق {team} جامعتك وبريدك الإلكتروني ضمن تسجيلك في {tournament}. يُرجى إكمال بقية بياناتك حتى تتوفر للمنظّمين.",
+  memberConfirmCta: "أكمل بياناتي",
+  memberConfirmNote:
+    "هذا الرابط يخصّ بريدك أنت فقط. وإلى أن تكمل بياناتك يبقى مركزك بحالة «قيد التأكيد». لا يحتاج القائد إلى انتظارك.",
+  memberConfirmFooter:
+    "إن لم تكن تعرف هذا الفريق فيمكنك تجاهل هذه الرسالة — فلن يتغيّر شيء حتى تُرسل النموذج.",
+  memberConfirmConsent:
+    "بإكمال بياناتك فإنك توافق على {link}، بما في ذلك استخدام المعلومات التي قدّمتها لأغراض الترويج والإعلام.",
+  memberConfirmPrivacyLink: "سياسة الخصوصية",
 };
 
 const COPY: Record<Language, EmailCopy> = { en: EN, ar: AR };

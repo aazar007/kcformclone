@@ -123,18 +123,33 @@ export function validateAdminTeamEdit(
   const seenGameTags = new Set<string>();
   const usedUniversities = new Set<string>();
 
+  /* Resolved before the roster so each row knows whether it is the leader's. Only
+     the leader has to be complete: a teammate's details are theirs to supply from
+     the emailed link, and an organiser saving an unrelated fix must not be blocked
+     by a profile that has not arrived yet. */
+  const leaderIndex =
+    typeof body.leaderIndex === "number" && Number.isInteger(body.leaderIndex)
+      ? body.leaderIndex
+      : null;
+
   const members: TeamInput["members"] = rows.map((row, index) => {
     const prefix = `member.${index}`;
     const role: MemberRole = isMemberRole(row?.role) ? row.role : "STARTER";
     const isCoach = role === "COACH";
+    const isLeader = leaderIndex === index;
+    const completesOwnDetails = !isLeader;
 
     const fullName = asString(row?.fullName);
-    const nameProblem = personNameError(fullName);
-    if (nameProblem) errors[`${prefix}.fullName`] = nameProblem;
+    if (!fullName && completesOwnDetails) {
+      // Left for the player.
+    } else {
+      const nameProblem = personNameError(fullName);
+      if (nameProblem) errors[`${prefix}.fullName`] = nameProblem;
+    }
 
     const gameTag = asString(row?.gameTag);
     if (!gameTag) {
-      if (!isCoach) errors[`${prefix}.gameTag`] = "Required";
+      if (!isCoach && !completesOwnDetails) errors[`${prefix}.gameTag`] = "Required";
     } else if (!GAME_TAG_PATTERN.test(gameTag)) {
       errors[`${prefix}.gameTag`] = "2–32 characters — letters, numbers, dots, dashes or #";
     } else if (seenGameTags.has(gameTag.toLowerCase())) {
@@ -146,7 +161,10 @@ export function validateAdminTeamEdit(
     const universityId = asString(row?.universityId);
     const university = universityId ? universityById(config, universityId) : null;
     if (!university) {
-      errors[`${prefix}.university`] = "Choose a university";
+      /* Optional for coaches: they may have graduated, and a university is not a
+         fact about the person on the bench. A submitted id that does not resolve is
+         still refused, so a typo is not silently dropped. */
+      if (!isCoach || universityId) errors[`${prefix}.university`] = "Choose a university";
     } else if (!regionIsAllowed(config, university.region)) {
       errors[`${prefix}.university`] = `Universities in ${university.region} are not open for this tournament`;
     } else {
@@ -156,10 +174,11 @@ export function validateAdminTeamEdit(
     const email = asString(row?.email).toLowerCase();
     if (!EMAIL_PATTERN.test(email)) {
       errors[`${prefix}.email`] = "Enter a valid email address";
-    } else if (university && !emailMatchesUniversity(email, university)) {
+    } else if (!isCoach && university && !emailMatchesUniversity(email, university)) {
       /* The same strict rule as the public form. Organisers can edit a team, and an
          edit is not a way to put another institution's address on a roster — the
-         university on the row decides which domains are acceptable. */
+         university on the row decides which domains are acceptable. Coaches may use
+         a personal address instead of a university one. */
       errors[`${prefix}.email`] =
         `${email} is not a ${university.name} address (expected ${acceptedEmailDomains(university)[0]})`;
     } else if (seenEmails.has(email)) {
@@ -170,7 +189,7 @@ export function validateAdminTeamEdit(
 
     const studentId = asString(row?.studentId);
     if (!studentId) {
-      if (!isCoach) errors[`${prefix}.studentId`] = "Required";
+      if (!isCoach && !completesOwnDetails) errors[`${prefix}.studentId`] = "Required";
     } else if (!STUDENT_ID_PATTERN.test(studentId)) {
       errors[`${prefix}.studentId`] = "4–20 numbers";
     } else if (seenStudentIds.has(studentId.toLowerCase())) {
@@ -180,20 +199,26 @@ export function validateAdminTeamEdit(
     }
 
     const discord = asString(row?.discord);
-    if (!discord) errors[`${prefix}.discord`] = "Required";
-    else if (!DISCORD_PATTERN.test(discord)) {
+    if (!discord) {
+      if (!completesOwnDetails) errors[`${prefix}.discord`] = "Required";
+    } else if (!DISCORD_PATTERN.test(discord)) {
       errors[`${prefix}.discord`] = "2–32 characters — letters, numbers, dots or underscores";
     }
 
     const phone = asString(row?.phone);
-    if (!phone) errors[`${prefix}.phone`] = "Required";
-    else if (!normalisePhone(phone)) errors[`${prefix}.phone`] = "Enter a Saudi mobile, e.g. 05X XXX XXXX";
+    if (!phone) {
+      if (!completesOwnDetails) errors[`${prefix}.phone`] = "Required";
+    } else if (!normalisePhone(phone)) {
+      errors[`${prefix}.phone`] = "Enter a Saudi mobile, e.g. 05X XXX XXXX";
+    }
 
     const requirements = answersFor(row?.requirements, config, index);
-    for (const requirement of config.requirements) {
-      const answer = requirements.find((entry) => entry.id === requirement.id)?.value;
-      const message = requirementError(requirement, answer);
-      if (message) errors[`${prefix}.req.${requirement.id}`] = message;
+    if (!completesOwnDetails) {
+      for (const requirement of config.requirements) {
+        const answer = requirements.find((entry) => entry.id === requirement.id)?.value;
+        const message = requirementError(requirement, answer);
+        if (message) errors[`${prefix}.req.${requirement.id}`] = message;
+      }
     }
 
     return {
@@ -212,11 +237,6 @@ export function validateAdminTeamEdit(
   });
 
   /* ---- leader ---- */
-  const leaderIndex =
-    typeof body.leaderIndex === "number" && Number.isInteger(body.leaderIndex)
-      ? body.leaderIndex
-      : null;
-
   if (leaderIndex === null || leaderIndex < 0 || leaderIndex >= members.length) {
     errors.leader = "Choose the team leader";
   } else if (members[leaderIndex]?.role === "COACH") {

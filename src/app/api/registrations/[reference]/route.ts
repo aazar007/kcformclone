@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
+import { hasAdminSession } from "@/lib/admin-auth";
+import { appBaseUrl } from "@/lib/app-url";
+import { requestedLanguage } from "@/lib/i18n";
+import {
+  confirmationMailerReady,
+  pendingMemberConfirmations,
+  sendMemberConfirmationRequests,
+} from "@/lib/confirmation-email";
+import { runAfterResponse } from "@/lib/deferred";
 import { loadConfig } from "@/lib/config-store";
 import { databaseConfigured } from "@/lib/db";
-import { normaliseEmail, otpConfigured, playerProofChecker, verifyProof } from "@/lib/otp";import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { normaliseEmail, otpConfigured, playerProofChecker, readProof } from "@/lib/otp";import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { toTeamInput } from "@/lib/team-input";
-import { leaderEmail, teamVerifiedEmails } from "@/lib/team-draft";
+import { teamVerifiedEmails } from "@/lib/team-draft";
 import {
   DuplicateValueError,
   findMemberClashes,
@@ -12,6 +21,7 @@ import {
   updateTeam,
 } from "@/lib/store";
 import { teamNameKey } from "@/lib/team-name";
+import { parseProofScope } from "@/lib/team-access";
 import { validatePayload } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -65,18 +75,50 @@ export async function PUT(
       return NextResponse.json({ error: "No registration matches that reference code" }, { status: 404 });
     }
 
-    const email = leaderEmail(team);
-    if (!email || !(await verifyProof(proof, normaliseEmail(email), "edit-access", team.id))) {
+    /*
+     * **This is the organiser's door now.**
+     *
+     * It replaces a whole roster in one request, which is exactly the access a
+     * leader must not have: their own edit flow changes the order of the rows and
+     * nothing else, so that a leader can never read or rewrite a teammate's phone
+     * number. A proof scoped to `LEADER`, `PLAYER`, `SUBSTITUTE` or `COACH` is
+     * therefore refused here, and only `ORGANISER` — minted from the console's own
+     * credential — is accepted.
+     */
+    const claims = await readProof(proof);
+    const scope = parseProofScope(claims?.scope ?? null);
+    if (
+      !claims ||
+      claims.purpose !== "edit-access" ||
+      !scope ||
+      scope.teamId !== team.id ||
+      scope.role !== "ORGANISER"
+    ) {
       return NextResponse.json(
         { error: "That editing session has expired. Reopen your registration to continue." },
         { status: 401 },
       );
     }
 
+    /* A banned entry stays readable in the console but is not the captain's to
+       change any more. */
+    if (team.bannedAt) {
+      return NextResponse.json(
+        { error: "This registration has been suspended by the organisers.", banned: true },
+        { status: 403 },
+      );
+    }
+
     const { config } = await loadConfig();
 
-    // Edits close with registration, matching what the page already shows.
-    if (!config.registrationOpen) {
+    /* Edits close with registration, matching what the page already shows — except
+       for a signed-in organiser, who uses the same form to correct an entry after the
+       window has shut. The exemption is the session cookie, so it cannot be claimed by
+       an ordinary visitor. */
+    if (
+      !config.registrationOpen &&
+      !(config.allowOrganiserEntriesClosed && (await hasAdminSession(request)))
+    ) {
       return NextResponse.json(
         { error: "Registration is closed, so registrations can no longer be edited.", registrationClosed: true },
         { status: 403 },
@@ -109,6 +151,23 @@ export async function PUT(
       data.members.map((member) => ({ email: member.email, studentId: member.studentId })),
       team.id,
     );
+    const banned = clashes.filter((clash) => clash.banned);
+    if (banned.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            banned.length === 1
+              ? "One of your members is suspended and cannot be registered."
+              : `${banned.length} of your members are suspended and cannot be registered.`,
+          banned: banned.map((clash) => ({
+            email: clash.email,
+            studentId: clash.studentId,
+            teamName: clash.teamName,
+          })),
+        },
+        { status: 403 },
+      );
+    }
     if (clashes.length > 0) {
       return NextResponse.json(
         {
@@ -130,6 +189,20 @@ export async function PUT(
     const updated = await updateTeam(team.id, toTeamInput(data));
     const leader = updated.members[updated.leaderIndex] ?? updated.members[0];
 
+    /* Members added by this edit start pending, exactly as they would on a new
+       registration; existing members keep their status, so nothing is re-emailed
+       and no confirmation is forgotten. Started now, finished after the response —
+       the save itself has already succeeded and should not wait for mail. */
+    const mailReady = await confirmationMailerReady();
+    const pendingLinks = pendingMemberConfirmations(updated).length;
+    if (pendingLinks > 0) {
+      const baseUrl = await appBaseUrl(request);
+      const language = requestedLanguage(body);
+      await runAfterResponse(() =>
+        sendMemberConfirmationRequests(updated, baseUrl, language),
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       reference: updated.reference,
@@ -138,6 +211,7 @@ export async function PUT(
       memberCount: updated.members.length,
       leaderName: leader?.fullName ?? "",
       universities: Array.from(new Set(updated.members.map((member) => member.universityName))),
+      memberConfirmationsQueued: mailReady ? pendingLinks : 0,
     });
   } catch (error) {
     if (error instanceof DuplicateValueError) {

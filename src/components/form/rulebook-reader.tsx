@@ -77,20 +77,95 @@ export function RulebookReader({
           "pdfjs-dist/legacy/build/pdf.mjs"
         )) as unknown as PdfJsModule;
 
-        /* Bundled by webpack into an asset URL on this origin, which `worker-src 'self'`
-           already allows. A CDN worker would need its own CSP entry and a network round
-           trip, for no benefit. */
-        pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
-          import.meta.url,
-        ).toString();
+        /* A **fixed** path under `public/`, copied there by `npm run pdfjs:assets`.
+           Deriving it from `new URL("pdfjs-dist/…", import.meta.url)` (what this used to
+           do) turns it into a content-hashed `/_next/static/media/…` path, which makes the
+           worker's location a build artefact that has to agree across two asset pipelines
+           — Next's and OpenNext's. A constant served from this origin is the same on Node
+           and on Workers, with nothing to keep in step. */
+        pdfjs.GlobalWorkerOptions.workerSrc = "/pdfjs/pdf.worker.min.mjs";
+
+        /*
+         * **Fetch the document ourselves and hand pdf.js the bytes.**
+         *
+         * Two reasons, both of which matter only on a deployed host:
+         *
+         * 1. `url:` makes pdf.js stream the file with **byte-range requests**. That is
+         *    normally fine, but through a serverless/edge proxy a range response can come
+         *    back as a partial or re-encoded body. A PDF parsed from a truncated stream
+         *    does not fail outright — it renders pages with mangled glyphs, because the
+         *    font programs it did receive are only partly there. Fetching the whole body
+         *    once and parsing from memory removes the class of failure entirely.
+         * 2. It lets us check that what arrived is actually a PDF. A proxy or captive
+         *    portal can answer with an HTML page and a `200`, which pdf.js would otherwise
+         *    try to parse.
+         */
+        const response = await fetch(src, { cache: "no-store" });
+        if (!response.ok) throw new Error(`The rulebook could not be fetched (${response.status}).`);
+
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        /* `%PDF-` is the format's own magic number. Anything else is not a document we
+           should try to draw. */
+        const magic = new TextDecoder("latin1").decode(bytes.subarray(0, 5));
+        if (magic !== "%PDF-") {
+          throw new Error("The rulebook response was not a PDF.");
+        }
 
         const loaded = await pdfjs.getDocument({
-          url: src,
+          data: bytes,
           /* Never evaluate anything out of the document. Rules PDFs come from an
              organiser's upload, but a PDF is a program as far as a viewer is concerned,
              and this one is rendered in the page that also holds the session cookie. */
           isEvalSupported: false,
+
+          /*
+           * **Glyphs are drawn as outlines, not as browser text.**
+           *
+           * This is the fix for "the rulebook is corrupted in Arabic", and it is worth
+           * being precise about what was going on, because the document was never at
+           * fault — the same file renders perfectly in Chrome's own PDF viewer.
+           *
+           * By default pdf.js registers each embedded font as a `FontFace` and then draws
+           * text with `fillText`, so the **browser** lays the string out. Those fonts are
+           * what a PDF calls a *shaped* font: the file stores the already-joined Arabic
+           * glyphs (the `ﺔ` / `ﻦ` presentation forms), and the only correct way to draw
+           * them is to place each one at the advance width the PDF states. When the
+           * browser is handed the string instead, it applies its own shaping and its own
+           * advances on top — and any doubt about the font's metrics shows up as exactly
+           * what the organiser reported: letters coming apart in the wrong places, words
+           * splitting, and — the tell — Latin text too, as "ROCK ET LEAGU E".
+           *
+           * With `disableFontFace`, pdf.js instead emits the glyph **outlines** from the
+           * font program and paints them at their stated positions. No shaping is applied
+           * a second time, so the page is reproduced as the PDF describes it. Verified on
+           * the three rulebooks in the database: Arabic now connects and reads correctly,
+           * and the Latin spacing is right.
+           *
+           * The cost is that text is no longer selectable inside the reader. That is a
+           * fair trade for a document whose whole purpose is to be *read*: a reader who
+           * wants to copy a line has the download button beside the reader.
+           */
+          disableFontFace: true,
+
+          /*
+           * **Arabic (and every non-Latin script) needs these, and without them the text
+           * renders as garbage rather than as missing boxes** — which is what "the words
+           * are corrupted" looks like.
+           *
+           * A PDF can describe its text in two ways. The safe one embeds the font and
+           * carries a `ToUnicode` map, so the viewer never has to know what the bytes
+           * mean. The other refers to a **predefined CMap** — `Identity-H`,
+           * `UniGB-UCS2-H`, and friends — or uses one of the fourteen standard fonts
+           * without embedding it. In that case pdf.js has to look the mapping up in
+           * `cmaps/`, and the glyph shapes up in `standard_fonts/`.
+           *
+           * Both directories live in `public/pdfjs/`, served from this origin, so the
+           * existing `connect-src 'self'` policy already covers them. They total 2.4 MB
+           * and are fetched **only when a document actually needs one**.
+           */
+          cMapUrl: "/pdfjs/cmaps/",
+          cMapPacked: true,
+          standardFontDataUrl: "/pdfjs/standard_fonts/",
         }).promise;
         pdf = loaded;
 
@@ -98,26 +173,42 @@ export function RulebookReader({
         if (!host || cancelled) return;
         host.replaceChildren();
 
+        /*
+         * **Check the text before drawing it.**
+         *
+         * If the font data could not be decoded, pdf.js does not throw: it substitutes
+         * `.notdef` and the extracted text comes back as U+FFFD, which is exactly the
+         * "corrupted words" symptom. Drawing that would show the reader a document they
+         * cannot use.
+         *
+         * So page one is decoded first and inspected. A single replacement character
+         * means the mapping failed, and the honest response is to stop drawing and let the
+         * browser's own PDF viewer show the file instead — it brings its own font stack and
+         * renders Arabic correctly. The acknowledgement still unlocks on "it loaded", which
+         * is the weaker promise the iframe fallback has always offered.
+         */
+        const firstPage = await loaded.getPage(1);
+        if (cancelled) return;
+        const probe = await firstPage.getTextContent();
+        const undecodable = probe.items.some((item) => (item.str ?? "").includes("\uFFFD"));
+        if (undecodable) {
+          throw new Error("The document's fonts could not be decoded on this device.");
+        }
+
         /* Fit to the column, not to the window: the PDF should reflow to whatever width
            the reader has, like text does. `devicePixelRatio` keeps it sharp. */
         const columnWidth = host.clientWidth || 720;
         const ratio = Math.min(window.devicePixelRatio || 1, 2);
 
         for (let number = 1; number <= loaded.numPages; number += 1) {
-          const page = await loaded.getPage(number);
+          /* Page one was already fetched for the check above. */
+          const page = number === 1 ? firstPage : await loaded.getPage(number);
           if (cancelled) return;
 
           const base = page.getViewport({ scale: 1 });
           const viewport = page.getViewport({ scale: (columnWidth * ratio) / base.width });
 
           const canvas = document.createElement("canvas");
-          /* Always left-to-right, whatever the page language is. A canvas's text
-             direction defaults to "inherit", so on the Arabic page (dir="rtl") every
-             glyph pdf.js places was drawn right-aligned from its own position — letters
-             pulled apart and words scrambled. pdf.js positions each glyph itself in PDF
-             (left-to-right) coordinates; the Arabic in the document is already shaped
-             and ordered, so LTR is correct for every language. */
-          canvas.dir = "ltr";
           canvas.width = Math.floor(viewport.width);
           canvas.height = Math.floor(viewport.height);
           canvas.className = "block w-full rounded-xl bg-white shadow-lg";
@@ -127,9 +218,6 @@ export function RulebookReader({
 
           const context = canvas.getContext("2d");
           if (!context) throw new Error("This browser cannot draw the rulebook.");
-          /* Belt and braces for browsers that resolve the context's direction before the
-             attribute takes effect. */
-          context.direction = "ltr";
           await page.render({ canvasContext: context, viewport }).promise;
         }
 
@@ -185,7 +273,7 @@ export function RulebookReader({
         src={src}
         title={title}
         onLoad={report}
-        className="mt-4 h-[70vh] min-h-[420px] w-full rounded-xl border border-[rgba(148,196,208,0.18)] bg-wall-950"
+        className="mt-4 h-[70vh] min-h-[26.25rem] w-full rounded-xl border border-[rgba(79, 182, 208,0.18)] bg-wall-950"
       />
     );
   }
@@ -199,20 +287,19 @@ export function RulebookReader({
         tabIndex={0}
         role="region"
         aria-label={title}
-        className="hud-scroll max-h-[70vh] min-h-[420px] overflow-y-auto rounded-xl border border-[rgba(148,196,208,0.18)] bg-wall-950 p-3 focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:outline-none"
+        className="hud-scroll max-h-[70vh] min-h-[26.25rem] overflow-y-auto rounded-xl border border-[rgba(79, 182, 208,0.18)] bg-wall-950 p-3 focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:outline-none"
       >
-        {/* LTR for the same reason as each canvas: pages are PDF drawings, not page text. */}
-        <div ref={pagesRef} dir="ltr" className="space-y-3" />
+        <div ref={pagesRef} className="space-y-3" />
 
         {status === "loading" && (
-          <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 text-ash">
+          <div className="flex min-h-[22.5rem] flex-col items-center justify-center gap-3 text-ash">
             <Loader2 className="size-5 animate-spin" />
-            <p className="text-[11px]">{t("rulebook.loading")}</p>
+            <p className="text-[0.6875rem]">{t("rulebook.loading")}</p>
           </div>
         )}
       </div>
 
-      <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-ash/80">
+      <p className="mt-3 flex items-start gap-1.5 text-[0.6875rem] leading-relaxed text-ash/80">
         <AlertCircle className="mt-px size-3.5 shrink-0" />
         <span>{t("rulebook.scrollHint")}</span>
       </p>
@@ -238,6 +325,14 @@ interface PdfPage {
     canvasContext: CanvasRenderingContext2D;
     viewport: PdfViewport;
   }): { promise: Promise<void> };
+  /**
+   * The page's text, used only to detect undecodable fonts.
+   *
+   * pdf.js does not throw when a CMap or standard font cannot be resolved — it draws
+   * `.notdef` and the text comes back as U+FFFD. Reading it is the only way to notice
+   * before showing the reader a document full of boxes.
+   */
+  getTextContent(): Promise<{ items: { str?: string }[] }>;
 }
 
 interface PdfDocument {
@@ -248,7 +343,34 @@ interface PdfDocument {
 
 interface PdfJsModule {
   GlobalWorkerOptions: { workerSrc: string };
-  getDocument(params: { url: string; isEvalSupported?: boolean }): {
+  getDocument(params: {
+    /**
+     * The document bytes, fetched by the reader itself.
+     *
+     * Preferred over `url:`: that makes pdf.js stream with byte-range requests, and a
+     * partial or re-encoded range response from an edge proxy yields a document that
+     * parses without error but draws mangled glyphs.
+     */
+    data?: Uint8Array;
+    url?: string;
+    isEvalSupported?: boolean;
+    /**
+     * Draw glyph outlines instead of registering a `FontFace`.
+     *
+     * Required for Arabic rulebooks: the files store pre-shaped glyphs, and letting the
+     * browser lay them out a second time breaks the joins. See the call site.
+     */
+    disableFontFace?: boolean;
+    /**
+     * Where pdf.js finds its predefined CMap tables, and whether they are the packed
+     * binary form. Needed for documents that describe text with a CMap rather than an
+     * embedded font — without it, non-Latin text renders as garbage.
+     */
+    cMapUrl?: string;
+    cMapPacked?: boolean;
+    /** Where pdf.js finds the fourteen standard fonts when a document does not embed them. */
+    standardFontDataUrl?: string;
+  }): {
     promise: Promise<PdfDocument>;
   };
 }

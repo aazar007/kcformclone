@@ -29,9 +29,12 @@ import { EMAIL_PATTERN, type RegistrationDraft } from "@/lib/validation";
  *
  * Kept short deliberately: the answer is what tells a captain their team name is
  * taken, and a visible pause between typing and being told reads as the check not
- * working at all.
+ * working at all. It was 400ms, which is long enough to notice on every field — the
+ * badge sat on "checking" for what felt like a round trip of its own. At 120ms the
+ * answer is usually back before the eye moves on, and a normal typing burst still
+ * collapses into a single request.
  */
-const DEBOUNCE_MS = 400;
+const DEBOUNCE_MS = 120;
 
 /**
  * The shortest value worth asking about.

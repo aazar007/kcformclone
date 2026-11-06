@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle, Loader2, Lock, MailCheck, ArrowRight } from "lucide-react";
+import { AlertCircle, Loader2, Lock, MailCheck, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { digitsOnly } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +63,19 @@ export function SecretGate({
    * rather than leave a form waiting for a code nobody asked for in this session.
    */
   const [phase, setPhase] = React.useState<"secret" | "confirm">("secret");
+
+  /**
+   * Whether the secret is drawn in the clear.
+   *
+   * The grand admin's secret is long and has no second field to check it against, so a
+   * typo is invisible: masked input gives no feedback about *where* it went wrong, and a
+   * failed sign-in is three attempts from a lockout. Being able to look is the difference
+   * between spotting a wrong character and re-reading your password manager.
+   *
+   * Off by default, so someone signing in over a shoulder does not have it revealed for
+   * them, and it resets whenever the field is cleared by a failed attempt.
+   */
+  const [revealed, setRevealed] = React.useState(false);
 
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -227,8 +240,24 @@ export function SecretGate({
       <WaveWall />
 
       <div className="relative w-full max-w-md">
-        <div className="mb-6">
-          <TournamentLogo name={tournamentName} tagline="Organiser Console" size="md" />
+        {/* The logo goes home. Both gates are reached by a typed word or a link, and
+            neither is somewhere a captain lands on purpose — so the first thing on the
+            page should be a way back to the form rather than only the browser's back
+            button.
+
+            Centred, because everything below it is: the link is `inline-block` so it
+            wraps the mark exactly, and inside a plain block that put it hard against the
+            start edge — 115px left of the card's centre line at 1280px wide, on both
+            gates. The flex wrapper centres the link without stretching it to full width,
+            which would make the whole header a click target. */}
+        <div className="mb-6 flex justify-center">
+          <a
+            href="/"
+            aria-label={`Back to ${tournamentName}`}
+            className="inline-block rounded-2xl transition-transform hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:outline-none"
+          >
+            <TournamentLogo name={tournamentName} tagline="Organiser Console" size="md" />
+          </a>
         </div>
 
         <div className="panel rounded-3xl p-6 sm:p-7">
@@ -244,7 +273,7 @@ export function SecretGate({
                     : "Confirm it is you"
                   : "Staff sign-in"}
               </h1>
-              <p className="text-[11px] text-ash">
+              <p className="text-[0.6875rem] text-ash">
                 {mode === "owner"
                   ? phase === "secret"
                     ? "This console changes the live tournament."
@@ -261,13 +290,13 @@ export function SecretGate({
             <form onSubmit={submitOwner} className="mt-5 space-y-2">
               <label
                 htmlFor="admin-secret"
-                className="text-[11px] font-bold tracking-[0.14em] text-ash uppercase"
+                className="text-[0.6875rem] font-bold tracking-[0.14em] text-ash uppercase"
               >
                 Secret code
               </label>
               <Input
                 id="admin-secret"
-                type="password"
+                type={revealed ? "text" : "password"}
                 dir="ltr"
                 autoFocus
                 autoComplete="current-password"
@@ -275,8 +304,22 @@ export function SecretGate({
                 invalid={Boolean(error)}
                 placeholder="••••••••••"
                 onChange={(event) => setCode(event.target.value)}
-                className="font-mono"
+                className="font-mono pe-11"
               />
+              {/* Inside the field's own box, vertically centred, so it reads as part of
+                  the control rather than as another button competing with Continue. */}
+              <div className="-mt-[2.6rem] flex justify-end pe-2 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setRevealed((current) => !current)}
+                  aria-label={revealed ? "Hide the secret" : "Show the secret"}
+                  aria-pressed={revealed}
+                  title={revealed ? "Hide the secret" : "Show the secret"}
+                  className="rounded-md p-1.5 text-ash transition-colors hover:text-brand"
+                >
+                  {revealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
               <Button type="submit" className="mt-3 w-full" disabled={busy || !code.trim()}>
                 {busy ? (
                   <>
@@ -290,7 +333,7 @@ export function SecretGate({
                   </>
                 )}
               </Button>
-              <p className="pt-1 text-[11px] leading-relaxed text-ash/70">
+              <p className="pt-1 text-[0.6875rem] leading-relaxed text-ash/70">
                 {/*
                  * Deliberately "when one is set" rather than a flat promise.
                  *
@@ -310,7 +353,7 @@ export function SecretGate({
             <form onSubmit={submitOwnerCode} className="mt-5 space-y-2">
               <label
                 htmlFor="admin-otp"
-                className="text-[11px] font-bold tracking-[0.14em] text-ash uppercase"
+                className="text-[0.6875rem] font-bold tracking-[0.14em] text-ash uppercase"
               >
                 Confirmation code
               </label>
@@ -346,7 +389,7 @@ export function SecretGate({
                   </>
                 )}
               </Button>
-              <p className="flex items-start gap-1.5 pt-1 text-[11px] leading-relaxed text-ash/70">
+              <p className="flex items-start gap-1.5 pt-1 text-[0.6875rem] leading-relaxed text-ash/70">
                 <MailCheck className="mt-px size-3.5 shrink-0" />
                 <span>
                   {mailed ??
@@ -362,7 +405,7 @@ export function SecretGate({
                   setSentTo(null);
                   setMailed(null);
                 }}
-                className="mx-auto block text-[11px] text-ash underline underline-offset-2 hover:text-snow"
+                className="mx-auto block text-[0.6875rem] text-ash underline underline-offset-2 hover:text-snow"
               >
                 Start again
               </button>
@@ -373,7 +416,7 @@ export function SecretGate({
             <form onSubmit={requestStaffCode} className="mt-5 space-y-2">
               <label
                 htmlFor="staff-email"
-                className="text-[11px] font-bold tracking-[0.14em] text-ash uppercase"
+                className="text-[0.6875rem] font-bold tracking-[0.14em] text-ash uppercase"
               >
                 Your email
               </label>
@@ -407,13 +450,13 @@ export function SecretGate({
           {mode === "staff" && sentTo !== null && (
             <form onSubmit={submitStaffCode} className="mt-5 space-y-2">
               {mailed && (
-                <p className="rounded-lg border border-brand/30 bg-brand/8 px-3 py-2 text-[11px] leading-relaxed text-ash">
+                <p className="rounded-lg border border-brand/30 bg-brand/8 px-3 py-2 text-[0.6875rem] leading-relaxed text-ash">
                   {mailed}
                 </p>
               )}
               <label
                 htmlFor="staff-code"
-                className="text-[11px] font-bold tracking-[0.14em] text-ash uppercase"
+                className="text-[0.6875rem] font-bold tracking-[0.14em] text-ash uppercase"
               >
                 Code from the email
               </label>
@@ -451,7 +494,7 @@ export function SecretGate({
                   setError(null);
                   setMailed(null);
                 }}
-                className="mx-auto block text-[11px] text-ash underline-offset-2 transition-colors hover:text-brand hover:underline"
+                className="mx-auto block text-[0.6875rem] text-ash underline-offset-2 transition-colors hover:text-brand hover:underline"
               >
                 Use a different address
               </button>
@@ -465,7 +508,7 @@ export function SecretGate({
             </p>
           )}
 
-          <p className="mt-4 text-[11px] leading-relaxed text-ash/70">
+          <p className="mt-4 text-[0.6875rem] leading-relaxed text-ash/70">
             {mode === "owner" ? (
               <>
                 The secret is checked on the server and never stored in the page. Set{" "}

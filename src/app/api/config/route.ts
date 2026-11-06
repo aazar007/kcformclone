@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { loadConfig, saveConfig } from "@/lib/config-store";
 import { NOT_CONFIGURED_MESSAGE, UNAUTHORISED_MESSAGE, adminSecret, isAdminRequest } from "@/lib/admin-auth";
+import { channelLogoKey, socialLogoKey } from "@/lib/logo-keys";
+import { pruneSponsorLogos } from "@/lib/store";
 import { normaliseConfig } from "@/lib/tournament";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +48,30 @@ export async function PUT(request: Request) {
 
   try {
     const saved = await saveConfig(config);
+
+    /*
+     * Remove logo bytes whose sponsor no longer exists.
+     *
+     * Sponsors live in a JSON column, so PostgreSQL cannot cascade a delete from them
+     * into `SponsorLogo` — removing a sponsor, or renaming one (which re-slugs its id),
+     * would otherwise leave its artwork in the table forever with no URL left to reach
+     * it. Doing it here, on the one write that can change the list, is the cheapest place
+     * that is guaranteed to run.
+     *
+     * Never fatal: the config is already saved, and a sweep that failed should not turn a
+     * successful save into an error the organiser has to retry.
+     */
+    /* Channel and footer social logos share the table, so their keys are live ids as
+       well — leaving them out would delete every channel and social logo on the next save. */
+    const liveLogoIds = [
+      ...config.sponsors.map((sponsor) => sponsor.id),
+      ...config.watchLinks.flatMap((link) => channelLogoKey(link.id) ?? []),
+      ...config.socialLinks.flatMap((link) => socialLogoKey(link.id) ?? []),
+    ];
+    await pruneSponsorLogos(liveLogoIds).catch((error) => {
+      console.warn("[config:save] could not prune orphaned sponsor logos:", error);
+    });
+
     return NextResponse.json({ ok: true, config: saved });
   } catch (error) {
     console.error("[config:save]", error);

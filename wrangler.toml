@@ -1,9 +1,10 @@
-name = "kcformclone"
+name = "ksucrownform"
 main = ".open-next/worker.js"
 upload_source_maps = true
 compatibility_date = "2026-10-19"
 compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
-
+workers_dev = false
+preview_urls = false
 # Keep plain-text variables added in the Cloudflare dashboard (ADMIN_PATH, STAFF_PATH,
 # ADMIN_EMAIL, ...). Without this, every deploy deletes any text variable that is not
 # listed under [vars] below. Secrets are never affected either way.
@@ -23,8 +24,8 @@ enabled = true
 
 [images]
 binding = "IMAGES"
-
+# coomment
 # OpenNext calls the Worker itself for cache revalidation, so this must match `name` above.
 [[services]]
 binding = "WORKER_SELF_REFERENCE"
-service = "kcformclone"
+service = "ksucrownform"

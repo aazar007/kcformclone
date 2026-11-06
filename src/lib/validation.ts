@@ -27,11 +27,13 @@ import {
   type NameCheckOptions,
 } from "./name-policy";
 import { normalisePhone } from "./utils";
+import { toWesternDigits } from "./i18n";
 import {
   UNIVERSITIES,
   acceptedEmailDomains,
   emailDomainOf,
   emailMatchesUniversity,
+  type University,
 } from "./universities";
 
 /* ------------------------------------------------------------------ */
@@ -72,6 +74,149 @@ export const DISCORD_PATTERN = /^[a-z0-9._]{2,32}(#\d{4})?$/i;
 export const STUDENT_ID_MIN = 4;
 export const STUDENT_ID_MAX = 20;
 export const STUDENT_ID_PATTERN = new RegExp(`^\\d{${STUDENT_ID_MIN},${STUDENT_ID_MAX}}$`);
+
+/**
+ * The student number contained in an address, according to that institution's format.
+ *
+ * Every university on the list issues `<number>@<domain>`, and two put literal text around
+ * the number — `s441234567@seu.edu.sa` and `441234567KSA@aou.edu.sa`. This reads the number
+ * back out so the form can fill the student-ID field from the address a student is already
+ * typing, rather than asking for the same digits twice.
+ *
+ * Returns `null` — never a guess — in every case where the answer is not certain:
+ *
+ * - the address does not belong to the chosen university (a different institution's format
+ *   must not be applied to it);
+ * - the declared prefix/suffix is missing, so what follows is not the number;
+ * - what remains is not digits, or is outside the length the rule accepts.
+ *
+ * The last one matters: an address like `ali@imamu.edu.sa` has a non-numeric local part, so
+ * nothing is extracted and the field is left alone. A wrong number silently written into
+ * the field an organiser uses to identify a student is far worse than no convenience at all.
+ *
+ * Affixes are matched case-insensitively — `S441234567@` and `441234567ksa@` are what a
+ * phone keyboard produces — but the digits are returned as typed.
+ */
+export function studentIdFromEmail(
+  email: string,
+  university: Pick<University, "studentIdFormat"> & Parameters<typeof emailMatchesUniversity>[1],
+): string | null {
+  const address = email.trim();
+  if (!emailMatchesUniversity(address, university)) return null;
+
+  const at = address.lastIndexOf("@");
+  if (at <= 0) return null;
+  let local = address.slice(0, at);
+
+  const { prefix, suffix } = university.studentIdFormat ?? {};
+
+  if (prefix) {
+    if (!local.toLowerCase().startsWith(prefix.toLowerCase())) return null;
+    local = local.slice(prefix.length);
+  }
+  if (suffix) {
+    if (!local.toLowerCase().endsWith(suffix.toLowerCase())) return null;
+    local = local.slice(0, local.length - suffix.length);
+  }
+
+  /* Arabic-Indic digits are folded first: a student on an Arabic keyboard may type the
+     number that way, and the rest of the form already accepts it. */
+  const digits = toWesternDigits(local);
+  return STUDENT_ID_PATTERN.test(digits) ? digits : null;
+}
+
+/**
+ * The student number *as it is being typed*, before the address is finished.
+ *
+ * `studentIdFromEmail` above is deliberately strict: it answers only when the whole address
+ * is present and correct. That is the right rule for the value the field ends up with, but
+ * it made the fill arrive in one jump at the last keystroke — nine digits typed, nothing
+ * shown, and then the number appeared in full. To anybody filling in the form that reads as
+ * "the fill does not work", which is exactly how it was reported.
+ *
+ * So this reads the digits seen so far and returns them, letting the field grow number by
+ * number with the address. It is used only to *show* a value: submission is still judged by
+ * the strict rule, and a provisional number is withdrawn — not left behind — the moment the
+ * address stops being a candidate for this institution.
+ *
+ * Deliberately lax in two places, and only these two:
+ *
+ * - **A missing affix is forgiven.** `s` (SEU, Shaqra) and `KSA` (AOU) are the last thing
+ *   typed or the first; refusing mid-word would blank the field and fill it again.
+ * - **A partly typed domain is accepted.** `@stu` is on its way to `student.ksu.edu.sa`.
+ *   A domain that has gone elsewhere — `@gma`, heading for gmail — is not, and empties it.
+ *
+ * Everything that made the strict rule safe still holds here: only digits are ever returned,
+ * the length is bounded, and an address belonging to a different university yields nothing.
+ */
+export function studentIdPreviewFromEmail(
+  email: string,
+  university: Pick<University, "studentIdFormat"> & Parameters<typeof emailMatchesUniversity>[1],
+): string | null {
+  const address = email.trim();
+  if (!address) return null;
+
+  const at = address.lastIndexOf("@");
+  const local = at === -1 ? address : address.slice(0, at);
+  const domain = at === -1 ? "" : address.slice(at + 1).trim().toLowerCase();
+
+  /* The domain is the only part that can disqualify a half-typed address. Empty means it has
+     not been written yet; started means it must still be heading for one of this
+     institution's domains, or the digits beside it belong to somebody else's address. */
+  if (domain) {
+    const onTheWay = acceptedEmailDomains(university).some((allowed) => {
+      const target = allowed.toLowerCase();
+      return domain === target || domain.endsWith(`.${target}`) || target.startsWith(domain);
+    });
+    if (!onTheWay) return null;
+  }
+
+  let body = local;
+  const { prefix, suffix } = university.studentIdFormat ?? {};
+
+  if (prefix && body.toLowerCase().startsWith(prefix.toLowerCase())) {
+    body = body.slice(prefix.length);
+  }
+  if (suffix && body.toLowerCase().endsWith(suffix.toLowerCase())) {
+    body = body.slice(0, body.length - suffix.length);
+  }
+
+  const digits = toWesternDigits(body).replace(/[^0-9]/g, "");
+  return digits ? digits.slice(0, STUDENT_ID_MAX) : null;
+}
+
+/**
+ * What the student-number field should hold after the address or the institution changes.
+ *
+ * The rule lives here rather than in the component because it is subtle enough to deserve
+ * tests and it is needed in two places — editing the address and changing the institution.
+ * Both ask the same question: *is the number currently in the field the one the form put
+ * there, or did a person choose it?*
+ *
+ * The answer is reached without any extra state. A value that is empty, or equal to what the
+ * previous address implied, came from the form and belongs to the form; anything else was
+ * typed by hand and is never overwritten. Emptying the field therefore hands it back — which
+ * is the only way to get the convenience back after a correction.
+ *
+ * The strict reader is preferred wherever it can answer, so a finished address always yields
+ * exactly what submission will accept; the preview only speaks for an address still being
+ * typed.
+ */
+export function studentIdAfterEdit(
+  currentStudentId: string,
+  previous: { email: string; university?: University },
+  next: { email: string; university?: University },
+): string {
+  const read = (email: string, university?: University) =>
+    university
+      ? (studentIdFromEmail(email, university) ?? studentIdPreviewFromEmail(email, university))
+      : null;
+
+  const impliedBefore = read(previous.email, previous.university);
+  if (currentStudentId.length > 0 && currentStudentId !== impliedBefore) return currentStudentId;
+
+  return read(next.email, next.university) ?? "";
+}
 
 /**
  * In-game handle — deliberately permissive because every title formats them
@@ -203,24 +348,45 @@ export function revealsImmediately(
       return gameTagPolicyError(value, { blockedTerms }) !== null;
 
     case "email": {
-      /* Held back until the address looks finished — an "@" with a dot after it.
-         Until then every prefix of a valid address is invalid, and flagging each
-         keystroke would train the captain to ignore the field. */
-      const at = value.lastIndexOf("@");
-      if (at === -1 || !value.slice(at + 1).includes(".")) return false;
-      if (!EMAIL_PATTERN.test(value)) return true;
+      /*
+       * **No red while the address is still being built.**
+       *
+       * This used to answer for any finished-looking local part — an `@` with a dot
+       * after it — which meant `4412@student.` flagged red on the way to
+       * `4412@student.ksu.edu.sa`. The complaint was exactly that: an error appeared
+       * before anything had been checked, on a value that was simply not finished, and a
+       * field that turns red while you type teaches people to ignore it.
+       *
+       * So only a *definite* answer is given at once, and only for a well-formed
+       * address: one whose domain belongs to no university on the list. `@gmail.com` is
+       * wrong whatever is selected, and saying so while the captain is looking at the
+       * field saves a wasted code. Everything else — malformed, incomplete, or merely
+       * the wrong institution for the current selection — waits for the blur or the
+       * attempt to continue, which is when a check has actually run.
+       */
+      if (!EMAIL_PATTERN.test(value)) return false;
 
-      /* No university is in hand here, so this can only answer "is this a domain any
-         university in the list uses?". That is still worth saying at once: a typed
-         `@gmail.com` is wrong whatever is selected, and waiting for the step to be
-         submitted to mention it wastes the moment the captain is looking at the field.
-         The *per-university* answer needs the selection and lives in `validateDraft`. */
+      /*
+       * **A domain that is still being typed is not a wrong domain.**
+       *
+       * `4412@student.ksu` satisfies `EMAIL_PATTERN` — `.ksu` is a plausible top-level
+       * label — so the domain test below used to reject it and turn the field red while
+       * the student was three keystrokes from `student.ksu.edu.sa`. The same "on the way
+       * somewhere" test the student-number reader uses fixes it: a domain that is a
+       * *prefix* of an accepted domain is unfinished, not foreign.
+       *
+       * Only a domain that has plainly gone elsewhere — `gmail.com`, `ksu.edu.sa.example`
+       * — gets an answer at once. Anything else waits for the blur or the attempt to
+       * continue, which is when a check has actually run.
+       */
       const domain = emailDomainOf(value);
-      return !UNIVERSITIES.some((university) =>
-        acceptedEmailDomains(university).some(
-          (allowed) => domain === allowed || domain.endsWith(`.${allowed}`),
-        ),
+      const headingSomewhereValid = UNIVERSITIES.some((university) =>
+        acceptedEmailDomains(university).some((allowed) => {
+          const target = allowed.toLowerCase();
+          return domain === target || domain.endsWith(`.${target}`) || target.startsWith(domain);
+        }),
       );
+      return !headingSomewhereValid;
     }
   }
 }
@@ -235,9 +401,10 @@ export function revealsImmediately(
  * is team-level except the leader flag.
  *
  * `verifiedEmail`/`emailProof` are the outcome of the OTP exchange: the address
- * the member proved they own, and the signed receipt the API checks. Editing the
- * address afterwards invalidates both, so verification cannot be borrowed from
- * one member by another.
+ * the member proved they own, and the signed receipt the API checks. Only the team
+ * leader needs one before submission; every other member confirms from the link we
+ * email them afterwards. Editing the address afterwards invalidates both, so
+ * verification cannot be borrowed from one member by another.
  */
 export interface MemberDraft {
   fullName: string;
@@ -327,6 +494,59 @@ export function resizeMembers(members: MemberDraft[], count: number): MemberDraf
 }
 
 /**
+ * Rebuild the roster to exactly the shape the rules require and the captain chose.
+ *
+ * **The starting line-up is not the captain's to choose** — the game decides how
+ * many play, so those rows are always present. What the captain does choose is the
+ * bench: how many substitutes, and whether the team carries a coach at all.
+ *
+ * Rows are kept by position, and their data with them, so changing the bench size
+ * never clears somebody's university or address. Roles are rewritten from the
+ * position, which is what makes the shape true rather than merely displayed.
+ */
+export function resizeRoster(
+  members: MemberDraft[],
+  rules: RosterRules,
+  substitutes: number,
+  hasCoach: boolean,
+): MemberDraft[] {
+  const bench = Math.max(0, Math.min(substitutes, rules.maxSubstitutes));
+  const coach = hasCoach && rules.maxCoaches > 0 ? 1 : 0;
+  const total = rules.starters + bench + coach;
+
+  const rows: MemberDraft[] = [];
+  for (let index = 0; index < total; index += 1) {
+    const role: MemberRole =
+      index < rules.starters
+        ? "STARTER"
+        : index < rules.starters + bench
+          ? "SUBSTITUTE"
+          : "COACH";
+    const prior = members[index];
+    rows.push({
+      ...emptyMember(role),
+      ...(prior ?? {}),
+      role,
+      requirements: { ...(prior?.requirements ?? {}) },
+    });
+  }
+  return rows;
+}
+
+/**
+ * How the roster is currently shaped, for the controls that describe it.
+ */
+export function rosterShape(members: MemberDraft[], rules: RosterRules) {
+  const counts = countRoles(members, rules);
+  return {
+    starters: counts.starters,
+    substitutes: counts.substitutes,
+    coaches: counts.coaches,
+    hasCoach: counts.coaches > 0,
+  };
+}
+
+/**
  * Set every slot's role from its position: the first `squadSize` rows are
  * starters, the rest substitutes. Used when the game changes and the meaning of
  * a position shifts.
@@ -376,7 +596,7 @@ export function normaliseMember(
 /* ------------------------------------------------------------------ */
 
 export const STEPS = [
-  { id: "team", title: "Team", blurb: "Name your squad and pick your division" },
+  { id: "team", title: "Team", blurb: "Name your squad and pick your section" },
   { id: "game", title: "Game", blurb: "Choose the title you are entering" },
   { id: "roster", title: "Roster", blurb: "Members, roles and email verification" },
   { id: "review", title: "Review", blurb: "Check everything before submitting" },
@@ -434,42 +654,33 @@ export function countRoles(members: MemberDraft[], rules: RosterRules) {
 }
 
 /**
- * Who the team leader is, once leadership has been decided.
+ * Who the team leader is: **the registrant, who is always the first row**.
  *
- * **When only one member can lead, that member leads — the question is not asked.**
- * A 1v1 title fields a one-person roster, and making a captain tick a "team leader"
- * box on the only row there is asks them to confirm a fact that has no alternative.
- * It also went wrong in practice: choosing a 1v1 game rebuilds the roster, the old
- * `leaderIndex` is dropped because it points past the end of the new one, and the
- * captain is then blocked by "Select a team leader" on a team of one, with a
- * checkbox on the *same row* being the only way out.
+ * The form used to ask, with a tick on each row. That was wrong twice over — a
+ * player entering a team is not in a position to *choose* the leader after the
+ * fact, and a stored index that survived a roster resize could point at a coach
+ * or past the end of the list. The rule is now the same one the organisers state
+ * before the form opens: whoever registers the team leads it.
  *
- * Coaches are excluded because a coach cannot lead — `validateDraft` already refuses
- * that, so counting them as candidates would invent a choice that is not allowed.
+ * Coaches cannot lead, so the helper walks forward to the first playable row. In
+ * the shape this form builds that is position 0, because starters come first; the
+ * walk exists for a stored team an organiser has since reordered.
  *
- * Returns null when the roster holds nobody eligible, so the caller still reports
- * "select a leader" rather than silently nominating an empty row.
+ * Returns null when there is nobody eligible, so the caller still reports the
+ * problem rather than silently nominating an empty row.
  */
 export function effectiveLeaderIndex(
   draft: Pick<RegistrationDraft, "members" | "leaderIndex">,
   rules: RosterRules,
 ): number | null {
-  const eligible: number[] = [];
-  draft.members.forEach((member, index) => {
-    if (resolveRole(member, rules) !== "COACH") eligible.push(index);
-  });
-
-  /* Exactly one candidate: leadership is automatic, and it overrides whatever the
-     draft happens to hold — including a value that survived a roster resize. */
-  if (eligible.length === 1) return eligible[0];
-  if (eligible.length === 0) return null;
-
-  /* Several candidates: the captain's choice stands, but only if it still points at
-     somebody who can lead. A stale index after a removal must not silently nominate
-     a coach. */
-  const chosen = draft.leaderIndex;
-  if (chosen !== null && eligible.includes(chosen)) return chosen;
-  return null;
+  /* **The registrant is the leader.** The form no longer asks, and the browser is
+     not trusted to say: whoever submits the registration *is* the team leader, and
+     the roster step puts them first. `leaderIndex` is therefore always 0 — kept in
+     the shape only because stored teams and the organiser's editor still read it. */
+  const firstPlayable = draft.members.findIndex(
+    (member) => resolveRole(member, rules) !== "COACH",
+  );
+  return firstPlayable === -1 ? null : firstPlayable;
 }
 
 /* ------------------------------------------------------------------ */
@@ -510,7 +721,7 @@ export function validateDraft(
     }
   }
 
-  if (!draft.gender) errors.gender = "Choose your division";
+  if (!draft.gender) errors.gender = "Choose your section";
 
   /* -------- Step 0b: consent -------- */
   if (config.requireConsent && !draft.consentGiven) {
@@ -534,7 +745,7 @@ export function validateDraft(
   } else if (!isGameAllowedForDivision(config, draft.gameId, draft.gender)) {
     errors.game = `${game.name} is not offered in the ${
       draft.gender === "female" ? "female" : "male"
-    } division`;
+    } section`;
   }
 
   /* -------- Step 2: roster composition -------- */
@@ -569,36 +780,50 @@ export function validateDraft(
   const seenNames = new Map<string, number>();
   const universitiesUsed = new Set<string>();
 
+  /* The leader is resolved before the roster is checked, because email verification
+     now only applies to them. A coach can never lead, so `effectiveLeaderIndex`
+     already excludes them. */
+  const leaderIndex = effectiveLeaderIndex(draft, rules);
+
   draft.members.forEach((member, index) => {
     const prefix = `member.${index}`;
     const isCoach = resolveRole(member, rules) === "COACH";
+    const isLeader = leaderIndex === index;
+    /* The captain only enters a teammate's university and address. Everything else
+       is completed by that person from their emailed link, so an empty field here
+       means "not their job", not "missing". Non-empty values are still checked. */
+    const completesOwnDetails = !isLeader;
 
     /* -- name -- */
     const name = member.fullName.trim();
-    const nameProblem = personNameError(name) ?? personNamePolicyError(name, policy);
-    if (nameProblem) {
-      errors[`${prefix}.fullName`] = nameProblem;
+    if (!name && completesOwnDetails) {
+      // Left for the player.
     } else {
-      warnings.push(
-        ...nameWarnings(name, { ...policy, label: `Member ${index + 1}'s name` }),
-      );
-      /* The same name twice is nearly always one person entered on two rows — but
-         two players can genuinely share a name, so this warns instead of blocking. */
-      const nameKey = name.replace(/\s+/g, " ").toLowerCase();
-      const earlier = seenNames.get(nameKey);
-      if (earlier !== undefined) {
-        warnings.push(
-          `Member ${earlier + 1} and member ${index + 1} have the same name — check you have not listed the same person twice`,
-        );
+      const nameProblem = personNameError(name) ?? personNamePolicyError(name, policy);
+      if (nameProblem) {
+        errors[`${prefix}.fullName`] = nameProblem;
       } else {
-        seenNames.set(nameKey, index);
+        warnings.push(
+          ...nameWarnings(name, { ...policy, label: `Member ${index + 1}'s name` }),
+        );
+        /* The same name twice is nearly always one person entered on two rows — but
+           two players can genuinely share a name, so this warns instead of blocking. */
+        const nameKey = name.replace(/\s+/g, " ").toLowerCase();
+        const earlier = seenNames.get(nameKey);
+        if (earlier !== undefined) {
+          warnings.push(
+            `Member ${earlier + 1} and member ${index + 1} have the same name — check you have not listed the same person twice`,
+          );
+        } else {
+          seenNames.set(nameKey, index);
+        }
       }
     }
 
     /* -- in-game tag (coaches do not play, so they need none) -- */
     const gameTag = member.gameTag.trim();
     if (!gameTag) {
-      if (!isCoach) errors[`${prefix}.gameTag`] = "Required";
+      if (!isCoach && !completesOwnDetails) errors[`${prefix}.gameTag`] = "Required";
     } else if (!GAME_TAG_PATTERN.test(gameTag)) {
       errors[`${prefix}.gameTag`] = "2–32 characters — letters, numbers, dots, dashes or #";
     } else if (gameTagPolicyError(gameTag, policy)) {
@@ -614,10 +839,14 @@ export function validateDraft(
       else seenGameTags.set(key, index);
     }
 
-    /* -- university (per member — a roster may mix institutions) -- */
+    /* -- university (per member — a roster may mix institutions) --
+     *
+     * Optional for coaches. A coach may have graduated, or never studied at one of
+     * these institutions, so a university and student number are questions about the
+     * players, not about the person on the bench. */
     const chosen = universities.find((university) => university.id === member.universityId);
     if (!member.universityId) {
-      errors[`${prefix}.university`] = "Select this member's university";
+      if (!isCoach) errors[`${prefix}.university`] = "Select this member's university";
     } else if (!chosen) {
       // Most often: the province this institution belongs to was closed while
       // the form was open, so it is no longer on the list at all.
@@ -630,11 +859,20 @@ export function validateDraft(
       }
     }
 
-    /* -- university email, verified by OTP -- */
+    /* -- email --
+     *
+     * Only the team leader proves ownership with a code during registration. Every
+     * other member is emailed a confirmation link after submission and stays marked
+     * pending until they use it, so this check must not block a non-leader.
+     *
+     * A coach may use any address — a university address is not required once they
+     * have graduated — so the domain rule applies to players only. */
     const email = member.email.trim();
     if (!email) {
       errors[`${prefix}.email`] = "Required";
-    } else if (!chosen) {
+    } else if (!EMAIL_PATTERN.test(email)) {
+      errors[`${prefix}.email`] = "Enter a valid email address";
+    } else if (!isCoach && !chosen) {
       /* **No address without a university.** The address is checked against the domain of
          the institution on this row, so without one there is no rule to check it against —
          and any address would pass. Requiring the choice first is what makes "strict on its
@@ -642,17 +880,16 @@ export function validateDraft(
          university is picked; this is the server-side half of the same rule. */
       errors[`${prefix}.email`] =
         "Choose this member's university first — the address must be its domain";
-    } else if (!EMAIL_PATTERN.test(email)) {
-      errors[`${prefix}.email`] = "Enter a valid email address";
-    } else if (!emailMatchesUniversity(email, chosen)) {
+    } else if (!isCoach && chosen && !emailMatchesUniversity(email, chosen)) {
       /* Before the verification check, deliberately. The other order told a captain to
          verify an address that could never be accepted — which sends a real code to the
          wrong mailbox and only then refuses the entry, at the end of the form. Saying it
          now costs one message instead of an email and a wasted trip. */
       errors[`${prefix}.email`] = `${email} is not a ${chosen.name} address (expected ${acceptedEmailDomains(chosen)[0]})`;
-    } else if (member.verifiedEmail.trim().toLowerCase() !== email.toLowerCase()) {
+    } else if (isLeader && member.verifiedEmail.trim().toLowerCase() !== email.toLowerCase()) {
       // The client only tracks *which* address was acknowledged; the signed proof
-      // is checked by the API. Editing the address un-acknowledges it.
+      // is checked by the API. Editing the address un-acknowledges it. Only the
+      // leader is asked to do this before submission.
       errors[`${prefix}.email`] = "Verify this address with the code we email you";
     } else {
       const key = email.toLowerCase();
@@ -667,7 +904,7 @@ export function validateDraft(
     /* -- student id (coaches need not be students) -- */
     const studentId = member.studentId.trim();
     if (!studentId) {
-      if (!isCoach) errors[`${prefix}.studentId`] = "Required";
+      if (!isCoach && !completesOwnDetails) errors[`${prefix}.studentId`] = "Required";
     } else if (!STUDENT_ID_PATTERN.test(studentId)) {
       errors[`${prefix}.studentId`] = "4–20 numbers";
     } else {
@@ -679,21 +916,27 @@ export function validateDraft(
 
     /* -- contact: every member, not just the leader -- */
     const discord = member.discord.trim();
-    if (!discord) errors[`${prefix}.discord`] = "Required";
-    else if (!DISCORD_PATTERN.test(discord)) {
+    if (!discord) {
+      if (!completesOwnDetails) errors[`${prefix}.discord`] = "Required";
+    } else if (!DISCORD_PATTERN.test(discord)) {
       errors[`${prefix}.discord`] = "2–32 characters — letters, numbers, dots or underscores";
     }
 
     const phone = member.phone.trim();
-    if (!phone) errors[`${prefix}.phone`] = "Required";
-    else if (!normalisePhone(phone)) {
+    if (!phone) {
+      if (!completesOwnDetails) errors[`${prefix}.phone`] = "Required";
+    } else if (!normalisePhone(phone)) {
       errors[`${prefix}.phone`] = "Enter a Saudi mobile, e.g. 05X XXX XXXX";
     }
 
-    /* -- organiser-defined requirements -- */
-    for (const requirement of config.requirements) {
-      const message = requirementError(requirement, member.requirements[requirement.id]);
-      if (message) errors[`${prefix}.req.${requirement.id}`] = message;
+    /* -- organiser-defined requirements --
+     * Answered by the player in the completion form, so the captain is not asked
+     * to answer for somebody else. */
+    if (!completesOwnDetails) {
+      for (const requirement of config.requirements) {
+        const message = requirementError(requirement, member.requirements[requirement.id]);
+        if (message) errors[`${prefix}.req.${requirement.id}`] = message;
+      }
     }
   });
 
@@ -706,18 +949,13 @@ export function validateDraft(
   /* -------- Team leader -------- */
   /* The effective leader, not the raw index: a roster with a single eligible member
      has already decided, and blocking that on a checkbox the captain never needed to
-     tick is how a 1v1 team got stuck. */
-  const leaderIndex = effectiveLeaderIndex(draft, rules);
-  const leaderValid =
-    leaderIndex !== null &&
-    leaderIndex >= 0 &&
-    leaderIndex < draft.members.length &&
-    draft.members[leaderIndex].fullName.trim().length > 0;
-
-  if (!leaderValid) {
-    errors.leader = draft.members.some((member) => member.fullName.trim())
-      ? "Select a team leader"
-      : "Add your members' names first";
+     tick is how a 1v1 team got stuck. Resolved above the roster loop, because only the
+     leader's address needs to be verified before submission. */
+  /* Leadership is decided by the roster's shape now — the registrant is first and
+     the bench and coach come after them — so there is nothing for the captain to
+     get wrong here. Only the impossibility is reported. */
+  if (leaderIndex === null) {
+    errors.leader = "Add your members' names first";
   } else if (resolveRole(draft.members[leaderIndex], rules) === "COACH") {
     // The organisers contact someone on the field, not the bench.
     errors.leader = "The team leader must be a starter, not a coach";
@@ -761,6 +999,15 @@ export interface PayloadMember {
   emailProof: string;
   /** Answers to the organiser-defined requirements, label included for export. */
   requirements: { id: string; label: string; value: string }[];
+  /**
+   * Set by the API — never by the browser — when this teammate completed their
+   * details from their emailed link before the team was submitted. It is the
+   * receipt, not an input: `validatePayload` ignores it and the route attaches it
+   * from the draft row it loaded itself.
+   */
+  profileCompletedAt?: Date | null;
+  /** The hash of that completed member's link, carried into the stored team. */
+  confirmTokenHash?: string | null;
 }
 
 export interface RegistrationPayload {
@@ -894,19 +1141,27 @@ export function validatePayload(
     errors.rules = "Please confirm you have read the rulebook and agree to the rules";
   }
 
-  if (!isGender(body.gender)) errors.gender = "Invalid division";
+  if (!isGender(body.gender)) errors.gender = "Invalid section";
 
   const game = typeof body.gameId === "string" ? gameById(config, body.gameId) : null;
   if (!game) {
     errors.game = "Invalid game";
   } else if (!isGameAllowedForDivision(config, game.id, body.gender as Gender)) {
-    errors.game = "Game is not offered in this division";
+    errors.game = "Game is not offered in this section";
   }
 
   const rules = rosterRulesFor(config, game);
   const alreadyVerified = options.alreadyVerified ?? new Set<string>();
   const verifyEmail = options.verifyEmail ?? (() => false);
   const members = Array.isArray(body.members) ? body.members : [];
+
+  /* Resolved before the roster is checked: only the leader's address needs a proof
+     before submission. Everyone else is emailed a confirmation link afterwards and
+     starts out pending. */
+  /* **The registrant is the leader**, so the submitted index is not consulted:
+     accepting one would let a hand-made request hand leadership to a row the form
+     no longer offers a way to choose. Position 0 is the leader by construction. */
+  const leaderIndex = members.length > 0 ? 0 : null;
 
   /* Refuse an oversized roster before doing any per-member work, so a hostile body
      with thousands of members costs one comparison rather than thousands of
@@ -950,17 +1205,27 @@ export function validatePayload(
 
       const role: MemberRole = isMemberRole(member.role) ? member.role : "STARTER";
       const isCoach = role === "COACH";
+      const isLeader = leaderIndex === index;
+      /* The captain enters only a teammate's university and address; the rest is
+         completed by that player from their emailed link. Empty is therefore
+         legitimate for a non-leader, while any value that is present is still
+         checked. */
+      const completesOwnDetails = !isLeader;
       if (role === "COACH") coaches += 1;
       else if (role === "SUBSTITUTE") substitutes += 1;
       else starters += 1;
 
       const name = typeof member.fullName === "string" ? member.fullName.trim() : "";
-      const nameProblem = personNameError(name) ?? personNamePolicyError(name, policy);
-      if (nameProblem) errors[`member.${index}.fullName`] = nameProblem;
+      if (!name && completesOwnDetails) {
+        // Left for the player.
+      } else {
+        const nameProblem = personNameError(name) ?? personNamePolicyError(name, policy);
+        if (nameProblem) errors[`member.${index}.fullName`] = nameProblem;
+      }
 
       const gameTag = typeof member.gameTag === "string" ? member.gameTag.trim() : "";
       if (!gameTag) {
-        if (!isCoach) errors[`member.${index}.gameTag`] = "Invalid game tag";
+        if (!isCoach && !completesOwnDetails) errors[`member.${index}.gameTag`] = "Invalid game tag";
       } else if (!GAME_TAG_PATTERN.test(gameTag)) {
         errors[`member.${index}.gameTag`] = "Invalid game tag";
       } else if (gameTagPolicyError(gameTag, policy)) {
@@ -974,26 +1239,32 @@ export function validatePayload(
       const university =
         typeof member.universityId === "string" ? universityById(config, member.universityId) : null;
       if (!university) {
-        errors[`member.${index}.university`] = "Invalid university";
+        /* Optional for coaches: they may have graduated or never studied at one of
+           these institutions. A submitted id that does not resolve is still refused,
+           so a mistyped or stale id is not silently dropped. */
+        if (!isCoach || (typeof member.universityId === "string" && member.universityId.trim())) {
+          errors[`member.${index}.university`] = "Invalid university";
+        }
       } else {
         usedUniversities.add(university.id);
         if (!regionIsAllowed(config, university.region)) {
           errors[`member.${index}.university`] = "University is outside the allowed provinces";
         } else if (!eligibleUniversityIds.has(university.id)) {
-          errors[`member.${index}.university`] = "This university is not available for this division";
+          errors[`member.${index}.university`] = "This university is not available for this section";
         }
       }
 
       const email = typeof member.email === "string" ? member.email.trim().toLowerCase() : "";
       if (!EMAIL_PATTERN.test(email)) {
         errors[`member.${index}.email`] = "Enter a valid email address";
-      } else if (!university) {
+      } else if (!isCoach && !university) {
         /* No university, no domain to check against — so the address is refused rather than
            accepted unchecked. The browser disables the field until a university is chosen;
-           this is the same rule for a request that never went near the browser. */
+           this is the same rule for a request that never went near the browser. Coaches are
+           exempt: they may use a personal address instead of a university one. */
         errors[`member.${index}.email`] =
           "Choose the member's university first — the address must be its domain";
-      } else if (!emailMatchesUniversity(email, university)) {
+      } else if (!isCoach && university && !emailMatchesUniversity(email, university)) {
         /* The server's copy of the same strict rule. The browser already refuses this,
            but the API is reachable without the browser, and a roster that names one
            university must not carry another institution's address. */
@@ -1003,19 +1274,21 @@ export function validatePayload(
       } else {
         seenEmails.add(email);
 
-        // The address must be backed by a proof this server issued.
+        /* Only the leader's address is proven before submission. Every other member
+           confirms later from the link we email them, and is shown as pending until
+           they do — a submission must not wait for that. */
         const verified =
           alreadyVerified.has(email) ||
           (typeof member.emailProof === "string" && verifyEmail(email, member.emailProof));
 
-        if (!verified) {
+        if (isLeader && !verified) {
           errors[`member.${index}.email`] = "This email address has not been verified";
         }
       }
 
       const studentId = typeof member.studentId === "string" ? member.studentId.trim() : "";
       if (!studentId) {
-        if (!isCoach) errors[`member.${index}.studentId`] = "Invalid student ID";
+        if (!isCoach && !completesOwnDetails) errors[`member.${index}.studentId`] = "Invalid student ID";
       } else if (!STUDENT_ID_PATTERN.test(studentId)) {
         errors[`member.${index}.studentId`] = "Invalid student ID";
       } else if (seenIds.has(studentId.toLowerCase())) {
@@ -1025,13 +1298,22 @@ export function validatePayload(
       }
 
       const discord = typeof member.discord === "string" ? member.discord.trim() : "";
-      if (!DISCORD_PATTERN.test(discord)) errors[`member.${index}.discord`] = "Invalid Discord ID";
+      if (!discord) {
+        if (!completesOwnDetails) errors[`member.${index}.discord`] = "Invalid Discord ID";
+      } else if (!DISCORD_PATTERN.test(discord)) {
+        errors[`member.${index}.discord`] = "Invalid Discord ID";
+      }
 
       const phone = typeof member.phone === "string" ? member.phone.trim() : "";
-      if (!normalisePhone(phone)) errors[`member.${index}.phone`] = "Invalid phone number";
+      if (!phone) {
+        if (!completesOwnDetails) errors[`member.${index}.phone`] = "Invalid phone number";
+      } else if (!normalisePhone(phone)) {
+        errors[`member.${index}.phone`] = "Invalid phone number";
+      }
 
       // Every configured requirement must be answered, whether or not the
-      // browser sent the field at all.
+      // browser sent the field at all. A teammate's answers are collected in the
+      // completion form, not here.
       const answers = new Map<string, string>(
         (Array.isArray(member.requirements) ? member.requirements : [])
           .filter(
@@ -1041,9 +1323,11 @@ export function validatePayload(
           .map((answer) => [String(answer.id), String(answer.value ?? "")]),
       );
 
-      for (const requirement of config.requirements) {
-        const message = requirementError(requirement, answers.get(requirement.id));
-        if (message) errors[`member.${index}.req.${requirement.id}`] = message;
+      if (!completesOwnDetails) {
+        for (const requirement of config.requirements) {
+          const message = requirementError(requirement, answers.get(requirement.id));
+          if (message) errors[`member.${index}.req.${requirement.id}`] = message;
+        }
       }
     });
 
@@ -1062,11 +1346,6 @@ export function validatePayload(
         "All members must come from the same university for this tournament";
     }
   }
-
-  const leaderIndex =
-    typeof body.leaderIndex === "number" && Number.isInteger(body.leaderIndex)
-      ? body.leaderIndex
-      : null;
 
   if (
     leaderIndex === null ||
@@ -1120,6 +1399,105 @@ export function validatePayload(
       leaderIndex: leaderIndex!,
       consentGiven: body.consentGiven === true,
       rulesAccepted: body.rulesAccepted === true,
+    },
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* A member completing their own details                               */
+/* ------------------------------------------------------------------ */
+
+export interface MemberCompletionPayload {
+  fullName: string;
+  gameTag: string;
+  studentId: string;
+  discord: string;
+  phone: string;
+  requirements: { id: string; label: string; value: string }[];
+}
+
+/**
+ * The details a player submits from their emailed link.
+ *
+ * The captain only chose this person's university and address, so everything the
+ * roster needs from them personally is gathered here. The rules are the same
+ * primitives the public form uses — a name is a name, whichever screen asked for
+ * it — but only the fields that belong to the member are checked; the university
+ * and address are already fixed and cannot be changed through this link.
+ *
+ * `role` and `universityId` come from the stored row, never from the request, so
+ * a player cannot promote themselves to coach to skip the student number, or move
+ * themselves to another institution.
+ */
+export function validateMemberCompletion(
+  input: unknown,
+  config: TournamentConfig,
+  options: { role: MemberRole },
+): { ok: true; data: MemberCompletionPayload } | { ok: false; errors: Record<string, string> } {
+  const body = (typeof input === "object" && input !== null ? input : {}) as Record<string, unknown>;
+  const errors: Record<string, string> = {};
+  const policy = { blockedTerms: config.blockedTerms };
+  const isCoach = options.role === "COACH";
+
+  const fullName = typeof body.fullName === "string" ? body.fullName.trim() : "";
+  const nameProblem = personNameError(fullName) ?? personNamePolicyError(fullName, policy);
+  if (nameProblem) errors.fullName = nameProblem;
+
+  const gameTag = typeof body.gameTag === "string" ? body.gameTag.trim() : "";
+  if (!gameTag) {
+    if (!isCoach) errors.gameTag = "Required";
+  } else if (!GAME_TAG_PATTERN.test(gameTag)) {
+    errors.gameTag = "2–32 characters — letters, numbers, dots, dashes or #";
+  } else if (gameTagPolicyError(gameTag, policy)) {
+    errors.gameTag = gameTagPolicyError(gameTag, policy)!;
+  }
+
+  const studentId = typeof body.studentId === "string" ? body.studentId.trim() : "";
+  if (!studentId) {
+    if (!isCoach) errors.studentId = "Required";
+  } else if (!STUDENT_ID_PATTERN.test(studentId)) {
+    errors.studentId = "4–20 numbers";
+  }
+
+  const discord = typeof body.discord === "string" ? body.discord.trim() : "";
+  if (!discord) errors.discord = "Required";
+  else if (!DISCORD_PATTERN.test(discord)) {
+    errors.discord = "2–32 characters — letters, numbers, dots or underscores";
+  }
+
+  const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+  if (!phone) errors.phone = "Required";
+  else if (!normalisePhone(phone)) {
+    errors.phone = "Enter a Saudi mobile, e.g. 05X XXX XXXX";
+  }
+
+  const provided = Array.isArray(body.requirements) ? body.requirements : [];
+  const answers = new Map<string, string>();
+  for (const entry of provided) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const answer = entry as { id?: unknown; value?: unknown };
+    if (typeof answer.id !== "string") continue;
+    answers.set(answer.id, answer.value === null || answer.value === undefined ? "" : String(answer.value));
+  }
+
+  const requirements = config.requirements.map((requirement) => {
+    const value = (answers.get(requirement.id) ?? "").trim();
+    const message = requirementError(requirement, value);
+    if (message) errors[`req.${requirement.id}`] = message;
+    return { id: requirement.id, label: requirement.label, value };
+  });
+
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+
+  return {
+    ok: true,
+    data: {
+      fullName,
+      gameTag,
+      studentId,
+      discord,
+      phone: normalisePhone(phone)!,
+      requirements,
     },
   };
 }

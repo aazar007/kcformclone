@@ -47,7 +47,7 @@ export function DuplicateBadge({
       role="status"
       aria-live="polite"
       className={cn(
-        "pointer-events-none absolute inset-y-0 end-3 flex items-center gap-1 text-[10px] font-bold tracking-wide",
+        "pointer-events-none absolute inset-y-0 end-3 flex items-center gap-1 text-[0.625rem] font-bold tracking-wide",
         look.className,
         className,
       )}

@@ -11,7 +11,7 @@ export function Label({
   return (
     <LabelPrimitive.Root
       className={cn(
-        "flex items-center gap-2 text-[11px] font-bold tracking-[0.14em] text-ash uppercase select-none",
+        "flex items-center gap-2 text-[0.6875rem] font-bold tracking-[0.14em] text-ash uppercase select-none",
         className,
       )}
       {...props}

@@ -11,10 +11,14 @@ import {
   Hash,
   Mail,
   MessageCircle,
+  Check,
   Pencil,
   Phone,
+  RefreshCw,
+  Radio,
   User,
   Users,
+  Loader2,
 } from "lucide-react";
 import { cn, formatPhone, normalisePhone } from "@/lib/utils";
 
@@ -45,10 +49,10 @@ function Row({
   return (
     <div className="flex items-start gap-3 py-2">
       <span className="mt-0.5 text-ash">{icon}</span>
-      <span className="w-36 shrink-0 text-[11px] font-bold tracking-[0.12em] text-ash uppercase">
+      <span className="w-36 shrink-0 text-[0.6875rem] font-bold tracking-[0.12em] text-ash uppercase">
         {label}
       </span>
-      <span className={cn("min-w-0 flex-1 text-sm text-snow break-words", mono && "font-mono text-[13px]")}>
+      <span className={cn("min-w-0 flex-1 text-sm text-snow break-words", mono && "font-mono text-[0.8125rem]")}>
         {value}
       </span>
     </div>
@@ -72,8 +76,8 @@ function Card({
 
   return (
     <section className="panel rounded-2xl p-5">
-      <header className="mb-3 flex items-center justify-between gap-3 border-b border-[rgba(148,196,208,0.12)] pb-3">
-        <h3 className="flex items-center gap-2 text-[11px] font-bold tracking-[0.18em] text-brand uppercase">
+      <header className="mb-3 flex items-center justify-between gap-3 border-b border-[rgba(79, 182, 208,0.12)] pb-3">
+        <h3 className="flex items-center gap-2 text-[0.6875rem] font-bold tracking-[0.18em] text-brand uppercase">
           {icon}
           {title}
         </h3>
@@ -81,14 +85,14 @@ function Card({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 px-2 text-[11px]"
+          className="h-7 px-2 text-[0.6875rem]"
           onClick={() => onEdit(step)}
         >
           <Pencil className="size-3" />
           {t("review.edit")}
         </Button>
       </header>
-      <div className="divide-y divide-[rgba(148,196,208,0.08)]">{children}</div>
+      <div className="divide-y divide-[rgba(79, 182, 208,0.08)]">{children}</div>
     </section>
   );
 }
@@ -147,6 +151,7 @@ export function StepReview({
   rulebooks,
   gamesRead,
   onOpenRulebook,
+  live,
 }: StepProps) {
   const { t, language } = useLanguage();
   const game = gameById(config, draft.gameId);
@@ -194,7 +199,7 @@ export function StepReview({
             game ? (
               <span className="flex flex-wrap items-center gap-2">
                 {game.name}
-                <span className="font-mono text-[11px] text-ash">
+                <span className="font-mono text-[0.6875rem] text-ash">
                   {/* The game step renders this same line through the dictionary; the
                       review step had it written out in English, so the Arabic review
                       screen read "1v1 · 1 on field". */}
@@ -214,7 +219,7 @@ export function StepReview({
               <span className="font-mono">
                 {draft.members.length} / {rules.maxTotal}
               </span>
-              <span className="text-[11px] text-ash">
+              <span className="text-[0.6875rem] text-ash">
                 {counts.starters === 1
                   ? t("review.starterOne")
                   : t("review.startersMany", { count: counts.starters })}
@@ -240,6 +245,109 @@ export function StepReview({
         />
       </Card>
 
+      {/* Players were asked before this step, so their answers are arriving now.
+          Shown above the roster because that is what changes: a row fills in as its
+          owner submits the form. */}
+      {live && live.status !== "idle" && draft.members.length > 1 && (
+        <div
+          className={cn(
+            "rounded-2xl border px-4 py-3",
+            live.status === "error"
+              ? "border-amber-400/40 bg-amber-400/8"
+              : live.pendingPositions.length === 0
+                ? "border-emerald-400/40 bg-emerald-400/8"
+                : "border-brand/35 bg-brand/6",
+          )}
+        >
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="flex items-center gap-2 text-xs font-bold tracking-wide text-snow">
+              {live.status === "error" ? (
+                <AlertCircle className="size-4 text-amber-300" />
+              ) : live.status === "sending" ? (
+                <Loader2 className="size-4 animate-spin text-brand" />
+              ) : live.pendingPositions.length === 0 ? (
+                <Check className="size-4 text-emerald-300" />
+              ) : (
+                <Radio className="size-4 animate-pulse text-brand" />
+              )}
+              {t("live.title")}
+            </span>
+
+            <span className="text-[0.6875rem] text-ash">
+              {live.status === "sending"
+                ? t("live.sending")
+                : live.status === "error"
+                  ? live.error ?? t("live.error")
+                  : live.pendingPositions.length === 0
+                    ? t("live.done")
+                    : live.pendingPositions.length === 1
+                      ? t("live.waitingOne", { total: live.expected })
+                      : t("live.waiting", {
+                          pending: live.pendingPositions.length,
+                          total: live.expected,
+                        })}
+            </span>
+
+            {live.status === "error" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="ms-auto h-7 px-2 text-[0.625rem]"
+                onClick={live.refresh}
+              >
+                <RefreshCw className="size-3" />
+                {t("live.retry")}
+              </Button>
+            ) : live.status === "live" && live.pendingPositions.length > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="ms-auto h-7 px-2 text-[0.625rem]"
+                onClick={live.refresh}
+              >
+                <RefreshCw className="size-3" />
+                {t("live.refresh")}
+              </Button>
+            ) : null}
+          </div>
+
+          {live.status === "live" && (
+            <p className="mt-1.5 text-[0.625rem] leading-relaxed text-ash/80">{t("live.hint")}</p>
+          )}
+
+          {/* One chip per player, so "who are we waiting for?" is answerable at a
+              glance rather than by counting name-less rows. */}
+          {live.status === "live" && live.expected > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {draft.members.map((member, index) => {
+                if (index === leaderIdx) return null;
+                const waiting = live.pendingPositions.includes(index);
+                return (
+                  <span
+                    key={index}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.5625rem] font-semibold",
+                      waiting
+                        ? "border-amber-400/40 bg-amber-400/10 text-amber-300"
+                        : "border-emerald-400/40 bg-emerald-400/10 text-emerald-300",
+                    )}
+                  >
+                    {waiting ? (
+                      <Loader2 className="size-2.5 animate-spin" />
+                    ) : (
+                      <Check className="size-2.5" />
+                    )}
+                    {member.fullName.trim() || t("review.playerNo", { n: index + 1 })}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       <Card
         title={t("review.rosterN", { count: draft.members.length })}
         icon={<User className="size-3.5" />}
@@ -251,6 +359,15 @@ export function StepReview({
           const isLeader = leaderIdx === index;
           const university = universities.find((entry) => entry.id === member.universityId);
           const phone = normalisePhone(member.phone);
+          /* A teammate's own details arrive from their emailed link; until they do,
+             the row says so rather than showing five empty dashes. */
+          const hasOwnDetails = Boolean(
+            member.fullName.trim() ||
+              member.gameTag.trim() ||
+              member.studentId.trim() ||
+              member.discord.trim() ||
+              member.phone.trim(),
+          );
           const verified =
             member.verifiedEmail.trim().toLowerCase() === member.email.trim().toLowerCase() &&
             member.email.trim().length > 0;
@@ -275,12 +392,12 @@ export function StepReview({
                   {isLeader && <Crown className="size-3.5 shrink-0 text-brand" />}
                 </span>
                 {member.gameTag.trim() && (
-                  <span className="rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 font-mono text-[10px] text-brand">
+                  <span className="rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 font-mono text-[0.625rem] text-brand">
                     {member.gameTag.trim()}
                   </span>
                 )}
                 <span className="ms-auto flex items-center gap-2">
-                  <span className="text-[10px] tracking-wider text-ash uppercase">
+                  <span className="text-[0.625rem] tracking-wider text-ash uppercase">
                     {t(roleLabelKey(role))}
                   </span>
                   <RolePill role={role} label={t(roleLabelKey(role))} />
@@ -291,10 +408,10 @@ export function StepReview({
                 <div className="flex min-w-0 items-center gap-2">
                   <Building2 className="size-3 shrink-0 text-ash" />
                   <dt className="sr-only">{t("review.university")}</dt>
-                  <dd className="min-w-0 truncate text-[12px] text-snow">
+                  <dd className="min-w-0 truncate text-[0.75rem] text-snow">
                     {university?.name ?? "—"}
                     {university && (
-                      <span className="ms-2 text-[11px] text-ash">{university.region}</span>
+                      <span className="ms-2 text-[0.6875rem] text-ash">{university.region}</span>
                     )}
                   </dd>
                 </div>
@@ -302,48 +419,63 @@ export function StepReview({
                   <Mail className="size-3 shrink-0 text-ash" />
                   <dt className="sr-only">{t("review.email")}</dt>
                   <dd className="flex min-w-0 items-center gap-2">
-                    <span className="min-w-0 truncate font-mono text-[12px] text-ash">
+                    <span className="min-w-0 truncate font-mono text-[0.75rem] text-ash">
                       {member.email.trim() || "—"}
                     </span>
                     {verified ? (
-                      <span className="shrink-0 rounded-full border border-emerald-400/40 bg-emerald-400/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-emerald-300 uppercase">
+                      <span className="shrink-0 rounded-full border border-emerald-400/40 bg-emerald-400/10 px-1.5 py-0.5 text-[0.5625rem] font-bold tracking-wider text-emerald-300 uppercase">
                         {t("review.emailConfirmed")}
                       </span>
-                    ) : (
-                      <span className="shrink-0 rounded-full border border-danger/40 bg-danger/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-danger uppercase">
+                    ) : member.email.trim() && isLeader ? (
+                      <span className="shrink-0 rounded-full border border-danger/40 bg-danger/10 px-1.5 py-0.5 text-[0.5625rem] font-bold tracking-wider text-danger uppercase">
                         {t("review.emailNotConfirmed")}
                       </span>
-                    )}
+                    ) : member.email.trim() ? (
+                      <span className="shrink-0 rounded-full border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-[0.5625rem] font-bold tracking-wider text-amber-300 uppercase">
+                        {t("review.emailPending")}
+                      </span>
+                    ) : null}
                   </dd>
                 </div>
-                <div className="flex min-w-0 items-center gap-2">
-                  <Hash className="size-3 shrink-0 text-ash" />
-                  <dt className="sr-only">{t("review.studentId")}</dt>
-                  <dd className="min-w-0 truncate font-mono text-[12px] text-ash">
-                    {member.studentId.trim() || "—"}
-                  </dd>
-                </div>
-                <div className="flex min-w-0 items-center gap-2">
-                  <MessageCircle className="size-3 shrink-0 text-ash" />
-                  <dt className="sr-only">{t("review.discord")}</dt>
-                  <dd className="min-w-0 truncate font-mono text-[12px] text-ash">
-                    {member.discord.trim() || "—"}
-                  </dd>
-                </div>
-                <div className="flex min-w-0 items-center gap-2">
-                  <Phone className="size-3 shrink-0 text-ash" />
-                  <dt className="sr-only">{t("review.phone")}</dt>
-                  <dd className="min-w-0 truncate font-mono text-[12px] text-ash">
-                    {phone ? formatPhone(phone) : member.phone.trim() || "—"}
-                  </dd>
-                </div>
+                {isLeader || hasOwnDetails ? (
+                  <>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Hash className="size-3 shrink-0 text-ash" />
+                      <dt className="sr-only">{t("review.studentId")}</dt>
+                      <dd className="min-w-0 truncate font-mono text-[0.75rem] text-ash">
+                        {member.studentId.trim() || "—"}
+                      </dd>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <MessageCircle className="size-3 shrink-0 text-ash" />
+                      <dt className="sr-only">{t("review.discord")}</dt>
+                      <dd className="min-w-0 truncate font-mono text-[0.75rem] text-ash">
+                        {member.discord.trim() || "—"}
+                      </dd>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Phone className="size-3 shrink-0 text-ash" />
+                      <dt className="sr-only">{t("review.phone")}</dt>
+                      <dd className="min-w-0 truncate font-mono text-[0.75rem] text-ash">
+                        {phone ? formatPhone(phone) : member.phone.trim() || "—"}
+                      </dd>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex min-w-0 items-start gap-2 sm:col-span-2">
+                    <User className="mt-0.5 size-3 shrink-0 text-brand" />
+                    <dd className="min-w-0 text-[0.6875rem] leading-relaxed text-ash">
+                      {t("review.detailsPending")}
+                    </dd>
+                  </div>
+                )}
                 {config.requirements
                   .filter((requirement) => member.requirements[requirement.id])
                   .map((requirement) => (
                     <div key={requirement.id} className="flex min-w-0 items-center gap-2">
                       <Gamepad className="size-3 shrink-0 text-ash" />
                       <dt className="sr-only">{requirement.label}</dt>
-                      <dd className="min-w-0 truncate text-[12px] text-ash">
+                      <dd className="min-w-0 truncate text-[0.75rem] text-ash">
                         <span className="text-ash/70">{requirement.label}:</span>{" "}
                         {member.requirements[requirement.id]}
                       </dd>
@@ -538,9 +670,9 @@ function RulesField({
 
   if (hasRulebook && !unlocked) {
     return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-[rgba(148,196,208,0.18)] bg-wall-950/40 p-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-[rgba(79, 182, 208,0.18)] bg-wall-950/40 p-4">
         <BookOpen className="mt-0.5 size-4 shrink-0 text-ash" />
-        <span className="min-w-0 flex-1 text-[11px] leading-relaxed text-ash">
+        <span className="min-w-0 flex-1 text-[0.6875rem] leading-relaxed text-ash">
           {t("rules.mustOpen")}
         </span>
         {onOpenRulebook && gameId && (
@@ -562,7 +694,7 @@ function RulesField({
             ? "border-danger/50 bg-danger/8"
             : checked
               ? "border-brand/50 bg-brand/8"
-              : "border-[rgba(148,196,208,0.18)] bg-wall-950/40 hover:border-brand/40",
+              : "border-[rgba(79, 182, 208,0.18)] bg-wall-950/40 hover:border-brand/40",
         )}
       >
         <Checkbox checked={checked} onChange={onChange} className="mt-0.5" />
@@ -586,7 +718,7 @@ function RulesField({
             )}
             <span className="text-brand">*</span>
           </span>
-          <span className="mt-1 block text-[11px] leading-relaxed text-ash">
+          <span className="mt-1 block text-[0.6875rem] leading-relaxed text-ash">
             {t("rules.consequence")}
           </span>
         </span>
@@ -643,7 +775,7 @@ function ConsentField({
             ? "border-danger/50 bg-danger/8"
             : checked
               ? "border-brand/50 bg-brand/8"
-              : "border-[rgba(148,196,208,0.18)] bg-wall-950/40 hover:border-brand/40",
+              : "border-[rgba(79, 182, 208,0.18)] bg-wall-950/40 hover:border-brand/40",
         )}
       >
         <Checkbox checked={checked} onChange={onChange} className="mt-0.5" />
@@ -652,7 +784,7 @@ function ConsentField({
             {t("review.consentLabel")}
             <span className="text-brand">*</span>
           </span>
-          <span className="mt-1 block text-[11px] leading-relaxed text-ash">
+          <span className="mt-1 block text-[0.6875rem] leading-relaxed text-ash">
             {/* The sentence is assembled from a template so the link and the member
                 phrase can each be translated — hardcoding the English word order
                 around a link is what left this paragraph English in Arabic.

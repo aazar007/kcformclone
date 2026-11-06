@@ -16,7 +16,7 @@ function DivisionPills({ game }: { game: GameDefinition }) {
       {game.divisions.map((division) => (
         <span
           key={division}
-          className="rounded-full border border-[rgba(148,196,208,0.24)] px-2 py-px text-[10px] font-bold text-ash"
+          className="rounded-full border border-[rgba(79, 182, 208,0.24)] px-2 py-px text-[0.625rem] font-bold text-ash"
         >
           {/* The whole word, not an initial — "Male"/"Female" in English and
               "ذكر"/"انثى" in Arabic. A single letter reads as an abbreviation the
@@ -50,14 +50,14 @@ function GameCard({
       className={cn(
         "group relative overflow-hidden rounded-xl border p-4 text-start transition-all",
         selected
-          ? "border-brand/70 shadow-[0_0_34px_-14px_rgba(92,240,247,0.9)]"
-          : "border-[rgba(148,196,208,0.16)] hover:border-brand/40",
+          ? "border-brand/70 shadow-[0_0_34px_-14px_rgba(79, 182, 208,0.9)]"
+          : "border-[rgba(79, 182, 208,0.16)] hover:border-brand/40",
       )}
       style={selected ? { backgroundColor: `${from}14` } : { backgroundColor: "rgba(14,20,23,0.4)" }}
     >
       {/* per-game accent bar */}
       <span
-        className="absolute inset-x-0 top-0 h-[3px]"
+        className="absolute inset-x-0 top-0 h-[0.1875rem]"
         style={{ backgroundImage: `linear-gradient(90deg, ${from}, ${to})` }}
       />
 
@@ -77,14 +77,14 @@ function GameCard({
               width={44}
               height={44}
               loading="lazy"
-              className="size-11 shrink-0 rounded-xl border border-[rgba(148,196,208,0.35)] object-contain p-0.5"
+              className="size-11 shrink-0 rounded-xl border border-[rgba(79, 182, 208,0.35)] object-contain p-0.5"
             />
           )}
           <div className="min-w-0">
             <p className={cn("text-sm font-bold tracking-wide", selected ? "text-brand" : "text-snow")}>
               {game.name}
             </p>
-            <p className="mt-0.5 font-mono text-[11px] tracking-wider text-ash">
+            <p className="mt-0.5 font-mono text-[0.6875rem] tracking-wider text-ash">
               {t("game.onField", { format: game.format, count: game.squadSize })}
             </p>
           </div>
@@ -92,7 +92,7 @@ function GameCard({
         <span
           className={cn(
             "flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
-            selected ? "border-brand bg-brand text-wall-950" : "border-[rgba(148,196,208,0.3)]",
+            selected ? "border-brand bg-brand text-wall-950" : "border-[rgba(79, 182, 208,0.3)]",
           )}
         >
           {selected && <Check className="size-3" />}
@@ -100,7 +100,7 @@ function GameCard({
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-2">
-        <span className="text-[10px] font-bold tracking-[0.14em] text-ash/70 uppercase">
+        <span className="text-[0.625rem] font-bold tracking-[0.14em] text-ash/70 uppercase">
           {t("game.openTo")}
         </span>
         <DivisionPills game={game} />
